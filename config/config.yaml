@@ -1,0 +1,41 @@
+# Project settings
+project: "ZSG3"
+
+# Libraries to process
+libraries:
+  ZSSG3_MET1:
+    forward: "/Users/ibpan/sedaDNA/ZSG3_MET1_EKDL250005403-1A_232LC3LT3_L3_1.fq.gz"
+    reverse: "/Users/ibpan/sedaDNA/ZSG3_MET1_EKDL250005403-1A_232LC3LT3_L3_2.fq.gz"
+    barcode_file: "/Users/ibpan/sedaDNA/barcodes-ZSG3_MET1.txt"
+  ZSSG3_MET5:
+    forward: "/Users/ibpan/sedaDNA/ZSG3_MET5_EKDL250005407-1A_232LC3LT3_L3_1.fq.gz"
+    reverse: "/Users/ibpan/sedaDNA/ZSG3_MET5_EKDL250005407-1A_232LC3LT3_L3_2.fq.gz"
+    barcode_file: "/Users/ibpan/sedaDNA/barcodes-ZSG3_MET5.txt"
+
+reference_db: "data/PhyloAlps.fasta"
+
+# Processing parameters
+barcodes:
+  matching: strict
+  primer_mismatches: 2
+  indels: false
+
+parameters:
+  # General settings:
+  max-cpu: 8             # <INTEGER> maximum number of CPUs to use (default 1).
+  # Merging parameters for obipairing:
+  obipairing:
+    gap-penalty: 2.0       # <FLOAT64>: gap penalty expressed as the multiply factor applied to the mismatch score between two nucleotides with a quality of 40 (default 2.0)
+    min-identity: 0.9      # <FLOAT64> minimum identity between overlapped regions of the reads to consider the alignment (default: 0.9).
+    min-overlap: 20        # <INTEGER> minimum overlap between both the reads to consider the alignment (default: 20).
+    penalty-scale: 1.0     # <FLOAT64> scale factor applied to the mismatch score and the gap penalty (default 1.0).
+  # Minimum count filtering:
+  filtering:
+    min-count: 2           # <INTEGER> minimum count to keep a sequence (default
+    min-length: 10         # <INTEGER> minimum length to keep a sequence (default 10)
+  # Filtering parameters for obiclean:
+  obiclean:
+    ratio: 0.05            # <FLOAT64> ratio to consider a sequence as an error of another sequence (default 0.05).
+    distance: 1            # <INTEGER> maximum distance to consider two sequences as related (default 1).
+    detect_chimera: false  # <BOOLEAN> if true, dereplicate sequences before filtering (default false).
+  
