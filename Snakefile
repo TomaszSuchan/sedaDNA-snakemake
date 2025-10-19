@@ -11,7 +11,7 @@ LIBRARIES = list(config["libraries"].keys())
 include: "workflow/rules/demultiplex.smk"
 include: "workflow/rules/filter.smk"
 include: "workflow/rules/stats.smk"
-#include: "workflow/rules/classify.smk"
+include: "workflow/rules/classify.smk"
 
 # Final outputs
 rule all:
@@ -28,11 +28,19 @@ rule all:
         expand("stats/{project}/{library}.merged_stats.tsv",
                project=PROJECT,
                library=LIBRARIES),
-        # Filtered and denoised sequences
-        expand("results/{project}/{library}.demux.uniq.filtered.denoised.fasta.gz",
+        # Classified fasta files for each database
+        expand("results/{project}/{project}-{db}.classified.fasta",
                project=PROJECT,
-               library=LIBRARIES),
-        # Taxonomic classification
-        data/ncbitaxo.tgz,
-        expand("results/{project}/{library}.classif",
-               project=PROJECT)
+               db=config["reference_dbs"].keys()),
+        # Fasta files without annotations
+        expand("results/{project}/{project}-{db}.classified.no_annot.fasta",
+               project=PROJECT,
+               db=config["reference_dbs"].keys()),
+        # MOTU tables
+        expand("results/{project}/{project}-{db}.motu_table.csv",
+               project=PROJECT,
+               db=config["reference_dbs"].keys()),
+        # Classification tables
+        expand("results/{project}/{project}-{db}.classification_table.csv",
+               project=PROJECT,
+               db=config["reference_dbs"].keys())

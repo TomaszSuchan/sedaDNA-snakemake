@@ -12,7 +12,11 @@ libraries:
     reverse: "/Users/ibpan/sedaDNA/ZSG3_MET5_EKDL250005407-1A_232LC3LT3_L3_2.fq.gz"
     barcode_file: "/Users/ibpan/sedaDNA/barcodes-ZSG3_MET5.txt"
 
-reference_db: "data/PhyloAlps.fasta"
+reference_dbs:
+  PhyloAlps: "data/ref_db/Alps_GH_clean_edit.cl.final_20-07-21.fasta"
+  ArctBorBryo: "data/ref_db/arctborbryo.gh.fixed.final_20-07-21.fasta"
+  EMBL143: "data/ref_db/GH_143_no-env_clean.final_20-07-21.fasta"
+  PhyloNorway: "data/ref_db/Norway_GH_clean_edit.cl.final_20-07-21.fasta"
 
 # Processing parameters
 barcodes:
@@ -31,7 +35,7 @@ parameters:
     penalty-scale: 1.0     # <FLOAT64> scale factor applied to the mismatch score and the gap penalty (default 1.0).
   # Minimum count filtering:
   filtering:
-    min-count: 2           # <INTEGER> minimum count to keep a sequence (default
+    min-count: 2           # <INTEGER> minimum count to keep a sequence (default 2)
     min-length: 10         # <INTEGER> minimum length to keep a sequence (default 10)
   # Filtering parameters for obiclean:
   obiclean:
