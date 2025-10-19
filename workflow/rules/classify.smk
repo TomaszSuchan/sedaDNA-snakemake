@@ -6,19 +6,73 @@ rule download_ncbitaxo:
 		obitaxonomy --download-ncbi --out data/ncbitaxo.tgz
 		"""
 
+
+rule merge_all_libraries:
+    input:
+        lambda wildcards: expand("results/{project}/{library}.demux.uniq.filtered.denoised.fasta.gz",
+                                project=wildcards.project,
+                                library=LIBRARIES)
+    output:
+        "results/{project}/{project}-merged.fasta.gz"
+    shell:
+        """
+        cat {input} > {output}
+        """
+
 rule classify:
 	input:
-		fasta = "results/{PROJECT}/{library}.demux.uniq.filtered.denoised.fasta.gz",
+		fasta = "results/{project}/{project}-merged.fasta.gz",
 		taxonomy = "data/ncbitaxo.tgz"
 	output:
-		"results/{PROJECT}/{library}.demux.uniq.filtered.denoised.classified.fasta"
+		"results/{project}/{project}-{db}.classified.fasta"
 	params:
-		reference_db = config["reference_db"]
+		db = lambda wildcards: config["reference_dbs"][wildcards.db]
 	shell:
 		"""
-		# run the classification steps
 		obitag -t {input.taxonomy} \
-        -R {params.reference_db}\
+        -R {params.db} \
         {input.fasta} \
+        > {output}
+		"""
+
+rule remove_annotations:
+	input:
+		"results/{project}/{project}-{db}.classified.fasta"
+	output:
+		"results/{project}/{project}-{db}.classified.no_annot.fasta"
+	shell:
+		"""
+		obiannotate  --delete-tag=obiclean_head \
+             --delete-tag=obiclean_headcount \
+             --delete-tag=obiclean_internalcount \
+             --delete-tag=obiclean_samplecount \
+             --delete-tag=obiclean_singletoncount \
+             {input} | \
+			 obiannotate --number | \
+			 obiannotate --set-id 'sprintf("seq%04d",annotations.seq_number)' \
+             > {output}
+		"""
+
+rule export_motu_tables:
+	input:
+		"results/{project}/{project}-{db}.classified.no_annot.fasta"
+	output:
+		"results/{project}/{project}-{db}.motu_table.csv"
+	shell:
+		"""
+		obimatrix --map obiclean_weight \
+          {input} \
+          > {output}
+		"""
+
+rule export_classification_tables:
+	input:
+		"results/{project}/{project}-{db}.classified.no_annot.fasta"
+	output:
+		"results/{project}/{project}-{db}.classification_table.csv"
+	shell:
+		"""
+		obicsv --auto -i -s \
+        {input} \
         > {output}
 		"""
