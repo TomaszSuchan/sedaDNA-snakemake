@@ -131,7 +131,7 @@ rule demultiplex:
         fastq="results/{PROJECT}/{library}.paired.fastq.gz",
         barcodes="results/{PROJECT}/barcodes-{library}_{length}bp_only.txt"
     output:
-        temp("results/{PROJECT}/{library}.demux_{length}bp.fastq.gz")
+        "results/{PROJECT}/{library}.demux_{length}bp.fastq.gz"
     params:
         max_cpu=config["parameters"].get("max-cpu", 1)
     log:
