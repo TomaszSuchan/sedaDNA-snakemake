@@ -56,7 +56,7 @@ rule plot_taxa_heatmap_log:
     output:
         "final_plots/{project}/{project}-taxa_heatmap_log.pdf"
     params:
-        log_transform = TRUE,
+        log_transform = "TRUE",
         top_n_taxa = config["parameters"]["plotting"].get("top_n_taxa", 50)
     conda:
         "../envs/r.yaml"
