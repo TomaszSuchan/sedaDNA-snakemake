@@ -74,7 +74,7 @@ rule plot_taxa_heatmap:
     output:
         "final_plots/{project}/{project}-taxa_heatmap.pdf"
     params:
-        log_transform = FALSE,
+        log_transform = "FALSE",
         top_n_taxa = config["parameters"]["plotting"].get("top_n_taxa", 50),
         width = config["parameters"]["plotting"].get("width", 10),
         height = config["parameters"]["plotting"].get("height", 8)
