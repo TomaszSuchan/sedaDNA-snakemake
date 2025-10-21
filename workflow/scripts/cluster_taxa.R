@@ -104,6 +104,15 @@ clustered <- filtered_data %>%
 cat("Clustered into", nrow(clustered), "unique taxa.\n")
 
 # -------------------------------
+# Filter by taxonimic level, minimum to family
+# ------------------------------- 
+
+clustered <- clustered %>% 
+  filter(obitag_rank %in% c("species", "subgenus", "section", "genus", "family", "subfamily", "tribe"))
+
+cat("Filtered to", nrow(clustered), "rows at or above family level.\n")
+
+# -------------------------------
 # Save clustered output
 # -------------------------------
 write_csv(clustered, output_file)
