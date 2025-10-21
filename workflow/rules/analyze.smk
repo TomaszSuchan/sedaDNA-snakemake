@@ -50,16 +50,38 @@ rule cluster_taxa:
             {output}
         """
 
-rule plot_taxa_heatmap:
+rule plot_taxa_heatmap_log:
     input:
         "final_tables/{project}/{project}-clustered_taxa_table.csv"
     output:
-        "final_plots/{project}/{project}-taxa_heatmap.pdf"
+        "final_plots/{project}/{project}-taxa_heatmap_log.pdf"
+    params:
+        log_transform = TRUE,
+        top_n_taxa = config["parameters"]["plotting"].get("top_n_taxa", 50)
     conda:
         "../envs/r.yaml"
     shell:
         """
         Rscript workflow/scripts/plot_taxa_heatmap.R \
+            {params.log_transform} {params.top_n_taxa} \
+            {input} \
+            {output}
+        """
+
+rule plot_taxa_heatmap:
+    input:
+        "final_tables/{project}/{project}-clustered_taxa_table.csv"
+    output:
+        "final_plots/{project}/{project}-taxa_heatmap.pdf"
+    params:
+        log_transform = FALSE,
+        top_n_taxa = config["parameters"]["plotting"].get("top_n_taxa", 50)
+    conda:
+        "../envs/r.yaml"
+    shell:
+        """
+        Rscript workflow/scripts/plot_taxa_heatmap.R \
+            {params.log_transform} {params.top_n_taxa} \
             {input} \
             {output}
         """

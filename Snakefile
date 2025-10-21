@@ -50,4 +50,6 @@ rule all:
         # Final clustered taxa table
         "final_tables/{project}/{project}-clustered_taxa_table.csv".format(project=PROJECT),
         # Taxa heatmap plot
-        "final_plots/{project}/{project}-taxa_heatmap.pdf".format(project=PROJECT)
+        "final_plots/{project}/{project}-taxa_heatmap.pdf".format(project=PROJECT),
+        # Taxa heatmap plot (log)
+        "final_plots/{project}/{project}-taxa_heatmap_log.pdf".format(project=PROJECT)
