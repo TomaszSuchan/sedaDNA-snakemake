@@ -50,8 +50,12 @@ if (length(prefix_cols) == 0) {
 cat("Using columns with prefix:", db_prefix, "\n")
 
 # Select only relevant classification subset
+id_col <- paste0(db_prefix, "_obitag_bestid")
+
 db_data <- data %>%
-  select(sequence_id, all_of(prefix_cols))
+  select(core, depth, sampling_batch, isolation_batch, library, blank_type, total_reads, remove,
+         all_of(prefix_cols)
+  )
 
 # -------------------------------
 # Extract and clean taxonomic info
@@ -66,34 +70,36 @@ if (!all(c(id_col, rank_col, taxid_col, taxon_col) %in% names(db_data))) {
   stop(paste0("Missing expected columns for prefix '", db_prefix, "'."))
 }
 
-# Extract numeric identity value from obitag_bestid if present
-db_data <- db_data %>%
-  mutate(
-    identity = as.numeric(str_extract(!!sym(id_col), "(?<=_id=)\\d+\\.?\\d*")),
-    identity = if_else(is.na(identity), 1.0, identity)  # default to 1.0 if not found
-  )
+db_data<- db_data %>%
+  rename_with(~ str_remove(., paste0("^", db_prefix, "_")))
 
 # -------------------------------
-# Filter by min_identity
+# Filter by min_identity and filter flag
 # -------------------------------
 filtered_data <- db_data %>%
-  filter(identity >= min_identity)
+  filter(remove==FALSE)
+cat("Kept", nrow(filtered_data), "rows after removing flagged sequences.\n")
 
+
+filtered_data <- filtered_data %>%
+  filter(obitag_bestid >= min_identity)
 cat("Kept", nrow(filtered_data), "rows after applying min_identity filter.\n")
+
+# drop unnecesary columns
+filtered_data <- filtered_data %>%
+  select(core, depth, sampling_batch, isolation_batch, library, blank_type, total_reads,
+         obitag_bestid, taxid, obitag_rank, taxon)
 
 # -------------------------------
 # Cluster taxa by identical taxid or taxon
 # -------------------------------
 # Example: group by taxid (or taxon if missing), summarise sequences
 clustered <- filtered_data %>%
-  group_by(!!sym(taxid_col), !!sym(taxon_col), !!sym(rank_col)) %>%
+  group_by(core, depth, sampling_batch, isolation_batch, library, blank_type, taxid, taxon, obitag_rank) %>%
   summarise(
-    n_sequences = n(),
-    sequences = paste(unique(sequence_id), collapse = ";"),
-    avg_identity = mean(identity, na.rm = TRUE),
+    total_reads = sum(total_reads),
     .groups = "drop"
-  ) %>%
-  arrange(desc(avg_identity), desc(n_sequences))
+  ) 
 
 cat("Clustered into", nrow(clustered), "unique taxa.\n")
 
