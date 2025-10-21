@@ -42,4 +42,12 @@ parameters:
     ratio: 0.05            # <FLOAT64> ratio to consider a sequence as an error of another sequence (default 0.05).
     distance: 1            # <INTEGER> maximum distance to consider two sequences as related (default 1).
     detect_chimera: false  # <BOOLEAN> if true, dereplicate sequences before filtering (default false).
-  
+  # final filters on OTU tables to remove low abundance sequences:
+  seq_filters:
+    reads_within: 3        # <INTEGER> minimum number of reads within a sample to keep an OTU (default 3)
+    reads_across: 10       # <INTEGER> minimum number of reads across all samples to keep an OTU (default 10)
+    reads_replicates: 3    # <INTEGER> minimum number of replicates to keep an OTU (default 3)
+  # final filters for taxonomic assignments to remove low confidence assignments:
+  tax_filters:
+    min_identity: 1     # <FLOAT64> minimum identity to keep a sequence assignment (default 1.0)
+    db_prefix: "PhyloAlps"  # <LIST> database prefixes to apply the min_identity filter to (default: [])
