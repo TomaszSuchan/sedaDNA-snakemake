@@ -63,7 +63,7 @@ rule plot_taxa_heatmap_log:
     shell:
         """
         Rscript workflow/scripts/plot_taxa_heatmap.R \
-            {params.log_transform} {params.top_n_taxa} \
+            {params.log_transform} {params.top_n_taxa} {params.width} {params.height} \
             {input} \
             {output}
         """
@@ -83,7 +83,7 @@ rule plot_taxa_heatmap:
     shell:
         """
         Rscript workflow/scripts/plot_taxa_heatmap.R \
-            {params.log_transform} {params.top_n_taxa} \
+            {params.log_transform} {params.top_n_taxa} {params.width} {params.height} \
             {input} \
             {output}
         """
