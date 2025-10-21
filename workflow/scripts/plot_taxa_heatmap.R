@@ -22,8 +22,10 @@ if (length(args) < 2) {
 
 log_transform <- as.logical(args[1])    # Set to TRUE for log10 transformation
 top_n_taxa <- as.integer(args[2])       # Maximum number of taxa to show in heatmap
-input_file <- args[3]
-output_file <- args[4]
+plot_width <- as.numeric(args[3])          # Width of output PDF
+plot_height <- as.numeric(args[4])         # Height of output PDF
+input_file <- args[5]
+output_file <- args[6]
 
 cat("------------------------------------------------------------\n")
 cat("Generating taxa heatmap\n")
@@ -91,20 +93,31 @@ if (nrow(mat) > top_n_taxa) {
   cat("Reduced to top", top_n_taxa, "taxa for visualization.\n")
 }
 
+# Extract depth from column names: assuming column format is "core_depth"
+sample_order <- colnames(mat) %>%
+  str_split_fixed("_", 2) %>%
+  as.data.frame() %>%
+  mutate(depth_num = as.numeric(V2)) %>%
+  arrange(depth_num) %>%
+  pull(V1)  # just get the core names, adjust if needed
+
+# Actually reorder columns
+mat <- mat[, order(colnames(mat))] 
+
 # -------------------------------
 # Draw and save heatmap
 # -------------------------------
 cat("Drawing heatmap...\n")
 
-pdf(output_file, width = 10, height = 8)
+pdf(output_file, width = plot_width, height = plot_height)
 pheatmap(
   mat,
-  cluster_rows = TRUE,
-  cluster_cols = TRUE,
+  cluster_rows = TRUE,       # cluster taxa
+  cluster_cols = FALSE,      # skip clustering columns
   scale = "row",
   fontsize = 8,
   color = colorRampPalette(c("navy", "white", "firebrick3"))(50),
-  main = "Top taxa across core-depth combinations"
+  main = ""
 )
 dev.off()
 cat("Heatmap saved to:", output_file, "\n")
