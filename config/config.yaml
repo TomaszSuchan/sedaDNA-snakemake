@@ -52,6 +52,6 @@ parameters:
     min_identity: 1     # <FLOAT64> minimum identity to keep a sequence assignment (default 1.0)
     db_prefix: "PhyloAlps"  # <LIST> database prefixes to apply the min_identity filter to (default: [])
   plotting:
-    top_n_taxa: 100        # <INTEGER> number of top taxa to show in heatmap (default 20)
+    top_n_taxa: 200        # <INTEGER> number of top taxa to show in heatmap (default 20)
     width: 10             # <INTEGER> width of heatmap plot (default 10)
-    height: 20            # <INTEGER> height of heatmap plot (default 8)
+    height: 15            # <INTEGER> height of heatmap plot (default 8)
