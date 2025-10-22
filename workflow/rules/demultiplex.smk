@@ -2,22 +2,40 @@ import pandas as pd
 from collections import defaultdict
 import os
 
+# Helper function to get library config in both single and multi-project modes
+def get_library_config(project, library, key):
+    """Get library configuration value for a specific project and library"""
+    if MULTI_PROJECT:
+        return PROJECTS_DATA[project]["libraries"][library][key]
+    else:
+        return config["libraries"][library][key]
+
 # Function to get barcode lengths for a specific library
-def get_library_barcode_lengths(library):
+def get_library_barcode_lengths(project, library):
     """Get barcode lengths present in a specific library"""
-    barcode_file = config["libraries"][library]["barcode_file"]
+    barcode_file = get_library_config(project, library, "barcode_file")
     if os.path.exists(barcode_file):
         df = pd.read_csv(barcode_file)
         return sorted(df['sample_tag'].str.len().unique().tolist())
     return []
 
-# Create a dictionary mapping libraries to their barcode lengths
-LIBRARY_BARCODE_LENGTHS = {lib: get_library_barcode_lengths(lib) for lib in LIBRARIES}
+# Create a dictionary mapping (project, library) tuples to their barcode lengths
+if MULTI_PROJECT:
+    LIBRARY_BARCODE_LENGTHS = {
+        (proj, lib): get_library_barcode_lengths(proj, lib)
+        for proj in PROJECTS
+        for lib in PROJECT_LIBRARIES[proj]
+    }
+else:
+    LIBRARY_BARCODE_LENGTHS = {
+        (PROJECT, lib): get_library_barcode_lengths(PROJECT, lib)
+        for lib in LIBRARIES
+    }
 
 # Validate barcode files before processing
 rule validate_barcodes:
     input:
-        lambda wildcards: config["libraries"][wildcards.library]["barcode_file"]
+        lambda wildcards: get_library_config(wildcards.PROJECT, wildcards.library, "barcode_file")
     output:
         "results/{PROJECT}/{library}.barcode_validation.txt"
     run:
@@ -62,7 +80,7 @@ rule validate_barcodes:
 # Split barcode files by length (dynamic)
 rule split_barcodes:
     input:
-        barcodes=lambda wildcards: config["libraries"][wildcards.library]["barcode_file"],
+        barcodes=lambda wildcards: get_library_config(wildcards.PROJECT, wildcards.library, "barcode_file"),
         validation="results/{PROJECT}/{library}.barcode_validation.txt"
     output:
         "results/{PROJECT}/barcodes-{library}_{length}bp_only.txt"
@@ -99,8 +117,8 @@ rule split_barcodes:
 # Pair reads and keep only merged
 rule pair_reads:
     input:
-        fvd=lambda wildcards: config["libraries"][wildcards.library]["forward"],
-        rev=lambda wildcards: config["libraries"][wildcards.library]["reverse"]
+        fvd=lambda wildcards: get_library_config(wildcards.PROJECT, wildcards.library, "forward"),
+        rev=lambda wildcards: get_library_config(wildcards.PROJECT, wildcards.library, "reverse")
     output:
         temp("results/{PROJECT}/{library}.paired.fastq.gz")
     params:
@@ -147,7 +165,7 @@ rule demultiplex:
 # Concatenate all demultiplexed files per library
 def get_demux_inputs(wildcards):
     """Get all demux files for a library based on its barcode lengths"""
-    lengths = LIBRARY_BARCODE_LENGTHS[wildcards.library]
+    lengths = LIBRARY_BARCODE_LENGTHS[(wildcards.PROJECT, wildcards.library)]
     return [f"results/{wildcards.PROJECT}/{wildcards.library}.demux_{length}bp.fastq.gz" for length in lengths]
 
 rule concat_barcodes:

@@ -11,3 +11,6 @@ dependencies:
   - r-purrr=1.1.0
   - r-ggplot2=4.0.0
   - r-pheatmap=1.0.13
+  - r-rcolorbrewer
+  - r-vegan
+  - r-ggvenn
