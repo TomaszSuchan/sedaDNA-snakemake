@@ -1,11 +1,6 @@
-# Multi-Project Batch Configuration
-# This file enables processing multiple projects simultaneously
-# and generating comparative analysis across projects
-
-# Mode: "single" or "multi"
-# - single: Use config/config.yaml (default behavior)
-# - multi: Process all projects listed below
-mode: "single"
+# Multi-Project Configuration
+# sedaDNA-snakemake always runs in multi-project mode
+# Process multiple projects simultaneously with automated cross-project analysis
 
 # Global settings shared across all projects
 global:
