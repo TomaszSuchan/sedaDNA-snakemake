@@ -26,6 +26,9 @@ rule classify:
         temp("results-classified/{project}/{project}-{db}.classified.fasta")
     params:
         db = lambda wildcards: config["projects"][wildcards.project]["parameters"]["reference_dbs"][wildcards.db]
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obitag"].get("time", 60)
     shell:
         """
         obitag -t {input.taxonomy} \
@@ -39,6 +42,7 @@ rule remove_annotations:
         "results-classified/{project}/{project}-{db}.classified.fasta"
     output:
         "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     shell:
         """
         obiannotate  --delete-tag=obiclean_head \

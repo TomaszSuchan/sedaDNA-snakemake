@@ -4,7 +4,8 @@
 
 parameters: &global_params
   # General settings:
-  max-cpu: 8             # <INTEGER> maximum number of CPUs to use (default 1).
+  max-cpu: 8            # <INTEGER> maximum number of CPU threads to use for processing (default 1)
+  # Reference databases for taxonomic assignment:
   reference_dbs:
       PhyloAlps: "data/ref_db/Alps_GH_clean_edit.cl.final_20-07-21.fasta"
       ArctBorBryo: "data/ref_db/arctborbryo.gh.fixed.final_20-07-21.fasta"
@@ -15,12 +16,14 @@ parameters: &global_params
     matching: strict
     primer_mismatches: 2
     indels: false
+    time: 30               # <INTEGER> maximum time (in minutes) to spend trying to demultiplex a library (default 30).
   # Merging parameters for obipairing:
   obipairing:
     gap-penalty: 2.0       # <FLOAT64>: gap penalty expressed as the multiply factor applied to the mismatch score between two nucleotides with a quality of 40 (default 2.0)
     min-identity: 0.9      # <FLOAT64> minimum identity between overlapped regions of the reads to consider the alignment (default: 0.9).
     min-overlap: 20        # <INTEGER> minimum overlap between both the reads to consider the alignment (default: 20).
     penalty-scale: 1.0     # <FLOAT64> scale factor applied to the mismatch score and the gap penalty (default 1.0).
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to merge a read pair (default 60).
   # Minimum count filtering:
   filtering:
     min-count: 2           # <INTEGER> minimum count to keep a sequence (default 2)
@@ -30,6 +33,8 @@ parameters: &global_params
     ratio: 0.05            # <FLOAT64> ratio to consider a sequence as an error of another sequence (default 0.05).
     distance: 1            # <INTEGER> maximum distance to consider two sequences as related (default 1).
     detect_chimera: false  # <BOOLEAN> if true, dereplicate sequences before filtering (default false).
+  obitag:
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to classify a sequence (default 60).
   # final filters on OTU tables to flag low-abundance and low-replicability sequences:
   seq_filters:
     reads_within: 3        # <INTEGER> minimum number of reads within a sample to keep an OTU (default 3)
