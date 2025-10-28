@@ -16,7 +16,6 @@ from config_loader import (
     load_and_validate_config,
     extract_projects_info,
     ConfigurationError,
-    SecurityError,
     ConfigKeys
 )
 
@@ -25,15 +24,9 @@ PROJECTS_CONFIG = "config/projects.yaml"
 
 # Load and validate configuration
 try:
-    projects_config = load_and_validate_config(
-        PROJECTS_CONFIG,
-        check_file_existence=False  # Set to True for strict validation
-    )
-except (ConfigurationError, SecurityError) as e:
+    projects_config = load_and_validate_config(PROJECTS_CONFIG)
+except ConfigurationError as e:
     print(f"\n❌ Configuration Error:\n{e}\n", file=sys.stderr)
-    sys.exit(1)
-except FileNotFoundError as e:
-    print(f"\n❌ File Not Found:\n{e}\n", file=sys.stderr)
     sys.exit(1)
 
 # Extract global config
