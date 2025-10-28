@@ -3,7 +3,7 @@
 This example shows how to use the optimized pipeline with library blanks and isolation blanks.
 
 ## 1. Edit the configuration file
-Edit `config/config.yaml`, define location of your reads, barcodes, and name of the project.
+Edit `config/config.yaml`, define location of your projects, reads, barcodes. Adjust params, including databases.
 
 ## 2. Prepare Your Barcode Files
 OBItools does not work with barcodes of different lengths, thus in the first part of the pipeline, the barcode file is divided by barcode lengths and the raw files are demultilexed separately for barcodes of different lengths, then results are concatenated.

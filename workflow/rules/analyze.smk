@@ -1,30 +1,21 @@
 rule process_motu:
     input:
-        motu_tables = expand(
-            "results/{project}/{project}-{db}.motu_table.csv",
-            project="{project}",
-            db=config["reference_dbs"].keys()
-        ),
-        classification_tables = expand(
-            "results/{project}/{project}-{db}.classification_table.csv",
-            project="{project}",
-            db=config["reference_dbs"].keys()
-        )
+        motu_table = "results-classified/{project}/{project}-{db}.motu_table.csv",
+        classification_table = "results-classified/{project}/{project}-{db}.classification_table.csv"
     output:
-        "final_tables/{project}/{project}-combined_classification_table.csv"
+        "results-tables/{project}/{project}-{db}-combined_classification_table.csv"
     params:
-        db_prefixes = ",".join(config["reference_dbs"].keys()),
-        reads_within = config["parameters"]["seq_filters"].get("reads_within", 3),
-        reads_across = config["parameters"]["seq_filters"].get("reads_across", 10),
-        reads_replicates = config["parameters"]["seq_filters"].get("reads_replicates", 3)
+        reads_within = lambda wildcards: config["projects"][wildcards.project]["parameters"]["seq_filters"].get("reads_within", 3),
+        reads_across = lambda wildcards: config["projects"][wildcards.project]["parameters"]["seq_filters"].get("reads_across", 10),
+        reads_replicates = lambda wildcards: config["projects"][wildcards.project]["parameters"]["seq_filters"].get("reads_replicates", 3)
     conda:
         "../envs/r.yaml"
     shell:
         """
         Rscript workflow/scripts/process_motu.R \
-            {input.motu_tables[0]} \
-            {input.classification_tables} \
-            "{params.db_prefixes}" \
+            {input.motu_table} \
+            {input.classification_table} \
+            {wildcards.db} \
             {params.reads_within} \
             {params.reads_across} \
             {params.reads_replicates} \
@@ -33,12 +24,11 @@ rule process_motu:
 
 rule cluster_taxa:
     input:
-        "final_tables/{project}/{project}-combined_classification_table.csv"
+        "results-tables/{project}/{project}-{db}-combined_classification_table.csv"
     output:
-        "final_tables/{project}/{project}-clustered_taxa_table.csv"
+        "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv"
     params:
-        min_identity = config["parameters"]["tax_filters"].get("min_identity", 1.0),
-        db_prefix = config["parameters"]["tax_filters"]["db_prefix"]
+        min_identity = lambda wildcards: config["projects"][wildcards.project]["parameters"]["tax_filters"].get("min_identity", 1.0)
     conda:
         "../envs/r.yaml"
     shell:
@@ -46,20 +36,19 @@ rule cluster_taxa:
         Rscript workflow/scripts/cluster_taxa.R \
             {input} \
             {params.min_identity} \
-            {params.db_prefix} \
             {output}
         """
 
 rule plot_taxa_heatmap_log:
     input:
-        "final_tables/{project}/{project}-clustered_taxa_table.csv"
+        "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv"
     output:
-        "final_plots/{project}/{project}-taxa_heatmap_log.pdf"
+        "results-plots/{project}/{project}-{db}-taxa_heatmap_log.pdf"
     params:
         log_transform = "TRUE",
-        top_n_taxa = config["parameters"]["plotting"].get("top_n_taxa", 50),
-        width = config["parameters"]["plotting"].get("width", 10),
-        height = config["parameters"]["plotting"].get("height", 8)
+        top_n_taxa = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("top_n_taxa", 50),
+        width = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("width", 10),
+        height = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("height", 8)
     conda:
         "../envs/r.yaml"
     shell:
@@ -72,14 +61,14 @@ rule plot_taxa_heatmap_log:
 
 rule plot_taxa_heatmap:
     input:
-        "final_tables/{project}/{project}-clustered_taxa_table.csv"
+        "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv"
     output:
-        "final_plots/{project}/{project}-taxa_heatmap.pdf"
+        "results-plots/{project}/{project}-{db}-taxa_heatmap.pdf"
     params:
         log_transform = "FALSE",
-        top_n_taxa = config["parameters"]["plotting"].get("top_n_taxa", 50),
-        width = config["parameters"]["plotting"].get("width", 10),
-        height = config["parameters"]["plotting"].get("height", 8)
+        top_n_taxa = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("top_n_taxa", 50),
+        width = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("width", 10),
+        height = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("height", 8)
     conda:
         "../envs/r.yaml"
     shell:

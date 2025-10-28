@@ -7,7 +7,7 @@ library(dplyr)
 library(tidyr)
 library(readr)
 library(stringr)
-library(purrr)
+library(purrr)  # <-- NEEDED for map_chr()
 
 # -------------------------------
 # PARAMETERS FROM ARGS
@@ -15,26 +15,27 @@ library(purrr)
 args <- commandArgs(trailingOnly = TRUE)
 
 if(length(args) < 7){
-  stop("Usage: Rscript process_motu.R <motu_table> <classification_file1> ... <classification_fileN> <prefixes_comma> <reads_within> <reads_across> <reads_replicates> <output_file>")
+  stop("Usage: Rscript process_motu.R <motu_table> <classification_file> <db_name> <reads_within> <reads_across> <reads_replicates> <output_file>")
 }
 
-motu_file <- args[1]                                   # first argument
-output_file <- args[length(args)]                      # last argument
+motu_file <- args[1]
+classification_file <- args[2]
+db_name <- args[3]
+reads_within <- as.numeric(args[4])
+reads_across <- as.numeric(args[5])
+reads_replicates <- as.numeric(args[6])
+output_file <- args[7]
 
-# numeric thresholds
-reads_replicates <- as.numeric(args[length(args)-1])
-reads_across     <- as.numeric(args[length(args)-2])
-reads_within     <- as.numeric(args[length(args)-3])
-
-# classification prefixes (comma-separated)
-classification_prefixes <- strsplit(args[length(args)-4], ",")[[1]]
-
-# classification files (everything between motu_file and prefixes)
-classification_files <- args[2:(length(args)-5)]
-
-if(length(classification_files) != length(classification_prefixes)){
-  stop("Number of classification files does not match number of prefixes")
-}
+cat("------------------------------------------------------------\n")
+cat("Running process_motu.R\n")
+cat("MOTU table: ", motu_file, "\n")
+cat("Classification file: ", classification_file, "\n")
+cat("Database: ", db_name, "\n")
+cat("Reads within: ", reads_within, "\n")
+cat("Reads across: ", reads_across, "\n")
+cat("Reads replicates: ", reads_replicates, "\n")
+cat("Output file: ", output_file, "\n")
+cat("------------------------------------------------------------\n")
 
 # -------------------------------
 # LOAD MOTU TABLE
@@ -69,7 +70,6 @@ motu_parsed <- motu %>%
     sampling_batch = if_else(blank_type %in% c("IB","PB","LB"), NA_character_, sampling_batch),
     isolation_batch = if_else(blank_type %in% c("PB","LB"), NA_character_, isolation_batch)
   )
-
 
 # -------------------------------
 # Identify sequence columns
@@ -132,41 +132,35 @@ motu_flagged <- motu_summary %>%
   mutate(remove = not_replicated | in_LB | in_IB | in_SB)
 
 # -------------------------------
-# Merge classifications with prefixes
+# Load and process classification table
 # -------------------------------
-classification_tables <- map2(classification_files, classification_prefixes, ~{
-  df <- read_csv(.x, show_col_types = FALSE) %>%
-    select(id, obitag_bestid, taxid, obitag_rank)
-  
-  # Extract numeric taxid and taxon name
-  numeric_taxid <- as.integer(str_extract(df$taxid, "\\d+"))
-  taxon_name <- str_extract(df$taxid, "(?<=\\[)[^\\]]+(?=\\])")
-  
-  # Add taxon column
-  df <- df %>%
-    mutate(
-      taxon = taxon_name,
-      taxid = numeric_taxid
-    )
-  
-  # Explicitly rename columns with the prefix
-  df <- df %>% rename(
-    !!paste0(.y,"_obitag_bestid") := obitag_bestid,
-    !!paste0(.y,"_taxid") := taxid,
-    !!paste0(.y,"_taxon") := taxon,
-    !!paste0(.y,"_obitag_rank") := obitag_rank
-  )
-  
-  df
-})
+classification <- read_csv(classification_file, show_col_types = FALSE) %>%
+  select(id, obitag_bestid, taxid, obitag_rank)
 
-classification_combined <- reduce(classification_tables, left_join, by = "id")
+# Extract numeric taxid and taxon name
+numeric_taxid <- as.integer(str_extract(classification$taxid, "\\d+"))
+taxon_name <- str_extract(classification$taxid, "(?<=\\[)[^\\]]+(?=\\])")
+
+# Add taxon column (NO PREFIX)
+classification <- classification %>%
+  mutate(
+    taxon = taxon_name,
+    taxid = numeric_taxid
+  )
+
+cat("Loaded classification table with", nrow(classification), "sequences.\n")
 
 # Join with MOTU flagged
 motu_flagged_classified <- motu_flagged %>%
-  left_join(classification_combined, by = c("sequence_id"="id"))
+  left_join(classification, by = c("sequence_id" = "id"))
+
+cat("Final table has", nrow(motu_flagged_classified), "rows.\n")
 
 # -------------------------------
 # Save final table
 # -------------------------------
 write_csv(motu_flagged_classified, output_file)
+
+cat("Saved combined classification table to:", output_file, "\n")
+cat("Done.\n")
+cat("------------------------------------------------------------\n")

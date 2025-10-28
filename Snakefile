@@ -4,8 +4,15 @@
 configfile: "config/config.yaml"
 
 # Extract configuration variables
-PROJECT = config["project"]
-LIBRARIES = list(config["libraries"].keys())
+PROJECTS = list(config["projects"].keys())
+PROJECT_LIBRARIES = {
+    project: list(config["projects"][project]["libraries"].keys())
+    for project in PROJECTS
+}
+PROJECT_DBS = {
+    project: list(config["projects"][project]["parameters"]["reference_dbs"].keys())
+    for project in PROJECTS
+}
 
 # Include rules
 include: "workflow/rules/demultiplex.smk"
@@ -17,39 +24,53 @@ include: "workflow/rules/analyze.smk"
 # Final outputs
 rule all:
     input:
-        # Validation reports
-        expand("results/{project}/{library}.barcode_validation.txt",
-               project=PROJECT,
-               library=LIBRARIES),
-        # Demultiplexed files
-        expand("results/{project}/{library}.demux.fastq.gz",
-               project=PROJECT,
-               library=LIBRARIES),
-        # Pairing, dereplication stats
-        expand("stats/{project}/{library}.merged_stats.tsv",
-               project=PROJECT,
-               library=LIBRARIES),
+        # Validation reports - all projects
+        [expand("results-sequences/{project}/{library}.barcode_validation.txt",
+                project=project,
+                library=PROJECT_LIBRARIES[project])
+         for project in PROJECTS],
+        # Demultiplexed files - all projects
+        [expand("results-sequences/{project}/{library}.demux.fastq.gz",
+                project=project,
+                library=PROJECT_LIBRARIES[project])
+         for project in PROJECTS],
+        # Pairing, dereplication stats - all projects
+        [expand("stats/{project}/{library}.merged_stats.tsv",
+                project=project,
+                library=PROJECT_LIBRARIES[project])
+         for project in PROJECTS],
         # Classified fasta files for each database
-        expand("results/{project}/{project}-{db}.classified.fasta",
-               project=PROJECT,
-               db=config["reference_dbs"].keys()),
-        # Fasta files without annotations
-        expand("results/{project}/{project}-{db}.classified.no_annot.fasta",
-               project=PROJECT,
-               db=config["reference_dbs"].keys()),
-        # MOTU tables
-        expand("results/{project}/{project}-{db}.motu_table.csv",
-               project=PROJECT,
-               db=config["reference_dbs"].keys()),
-        # Classification tables
-        expand("results/{project}/{project}-{db}.classification_table.csv",
-               project=PROJECT,
-               db=config["reference_dbs"].keys()),
-        # Final processed MOTU table
-        "final_tables/{project}/{project}-combined_classification_table.csv".format(project=PROJECT),
-        # Final clustered taxa table
-        "final_tables/{project}/{project}-clustered_taxa_table.csv".format(project=PROJECT),
-        # Taxa heatmap plot
-        "final_plots/{project}/{project}-taxa_heatmap.pdf".format(project=PROJECT),
-        # Taxa heatmap plot (log)
-        "final_plots/{project}/{project}-taxa_heatmap_log.pdf".format(project=PROJECT)
+        [expand("results-classified/{project}/{project}-{db}.classified.no_annot.fasta",
+                project=project,
+                db=PROJECT_DBS[project])
+         for project in PROJECTS],
+        # MOTU tables - all projects
+        [expand("results-classified/{project}/{project}-{db}.motu_table.csv",
+                project=project,
+                db=PROJECT_DBS[project])
+         for project in PROJECTS],
+        # Classification tables - all projects
+        [expand("results-classified/{project}/{project}-{db}.classification_table.csv",
+                project=project,
+                db=PROJECT_DBS[project])
+         for project in PROJECTS],
+        # Final processed MOTU table - all projects, all databases
+        [expand("results-tables/{project}/{project}-{db}-combined_classification_table.csv",
+                project=project,
+                db=PROJECT_DBS[project])
+         for project in PROJECTS],
+        # Final clustered taxa table - all projects, all databases
+        [expand("results-tables/{project}/{project}-{db}-clustered_taxa_table.csv",
+                project=project,
+                db=PROJECT_DBS[project])
+         for project in PROJECTS],
+        # Taxa heatmap plot - all projects, all databases
+        [expand("results-plots/{project}/{project}-{db}-taxa_heatmap.pdf",
+                project=project,
+                db=PROJECT_DBS[project])
+         for project in PROJECTS],
+        # Taxa heatmap plot (log) - all projects, all databases
+        [expand("results-plots/{project}/{project}-{db}-taxa_heatmap_log.pdf",
+                project=project,
+                db=PROJECT_DBS[project])
+         for project in PROJECTS]

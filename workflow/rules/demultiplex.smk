@@ -3,25 +3,34 @@ from collections import defaultdict
 import os
 
 # Function to get barcode lengths for a specific library
-def get_library_barcode_lengths(library):
+def get_library_barcode_lengths(project, library):
     """Get barcode lengths present in a specific library"""
-    barcode_file = config["libraries"][library]["barcode_file"]
+    barcode_file = config["projects"][project]["libraries"][library]["barcode_file"]
     if os.path.exists(barcode_file):
         df = pd.read_csv(barcode_file)
         return sorted(df['sample_tag'].str.len().unique().tolist())
     return []
 
 # Create a dictionary mapping libraries to their barcode lengths
-LIBRARY_BARCODE_LENGTHS = {lib: get_library_barcode_lengths(lib) for lib in LIBRARIES}
+LIBRARY_BARCODE_LENGTHS = {
+    project: {
+        lib: get_library_barcode_lengths(project, lib) 
+        for lib in PROJECT_LIBRARIES[project]
+    }
+    for project in PROJECTS
+}
 
 # Validate barcode files before processing
 rule validate_barcodes:
     input:
-        lambda wildcards: config["libraries"][wildcards.library]["barcode_file"]
+        lambda wildcards: config["projects"][wildcards.project]["libraries"][wildcards.library]["barcode_file"]
     output:
-        "results/{PROJECT}/{library}.barcode_validation.txt"
+        "results-sequences/{project}/{library}.barcode_validation.txt"
     run:
-        df = pd.read_csv(input[0])
+        try:
+            df = pd.read_csv(input[0])
+        except Exception as e:
+            raise ValueError(f"Failed to read barcode file '{input[0]}': {e}")
         
         # Validation checks
         required_columns = ['experiment', 'sample', 'sample_tag', 'forward_primer', 'reverse_primer']
@@ -62,14 +71,14 @@ rule validate_barcodes:
 # Split barcode files by length (dynamic)
 rule split_barcodes:
     input:
-        barcodes=lambda wildcards: config["libraries"][wildcards.library]["barcode_file"],
-        validation="results/{PROJECT}/{library}.barcode_validation.txt"
+        barcodes=lambda wildcards: config["projects"][wildcards.project]["libraries"][wildcards.library]["barcode_file"],
+        validation="results-sequences/{project}/{library}.barcode_validation.txt"
     output:
-        "results/{PROJECT}/barcodes-{library}_{length}bp_only.txt"
+        "results-sequences/{project}/barcodes-{library}_{length}bp_only.txt"
     params:
-        matching=config["barcodes"]["matching"],
-        primer_mismatches=config["barcodes"]["primer_mismatches"],
-        indels=str(config["barcodes"]["indels"]).lower()
+        matching=lambda wildcards: config["projects"][wildcards.project]["parameters"]["demultiplexing"]["matching"],
+        primer_mismatches=lambda wildcards: config["projects"][wildcards.project]["parameters"]["demultiplexing"]["primer_mismatches"],
+        indels=lambda wildcards: str(config["projects"][wildcards.project]["parameters"]["demultiplexing"]["indels"]).lower()
     run:
         # Read the barcode CSV file
         df = pd.read_csv(input.barcodes)
@@ -99,18 +108,18 @@ rule split_barcodes:
 # Pair reads and keep only merged
 rule pair_reads:
     input:
-        fvd=lambda wildcards: config["libraries"][wildcards.library]["forward"],
-        rev=lambda wildcards: config["libraries"][wildcards.library]["reverse"]
+        fvd=lambda wildcards: config["projects"][wildcards.project]["libraries"][wildcards.library]["forward"],
+        rev=lambda wildcards: config["projects"][wildcards.project]["libraries"][wildcards.library]["reverse"]
     output:
-        temp("results/{PROJECT}/{library}.paired.fastq.gz")
+        temp("results-sequences/{project}/{library}.paired.fastq.gz")
     params:
-        gap_penalty = config["parameters"]["obipairing"].get("gap-penalty", 2.0),
-        min_identity = config["parameters"]["obipairing"].get("min-identity", 0.9),
-        min_overlap = config["parameters"]["obipairing"].get("min-overlap", 20),
-        penalty_scale = config["parameters"]["obipairing"].get("penalty-scale", 1.0),
-        max_cpu = config["parameters"].get("max-cpu", 1)
+        gap_penalty = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"].get("gap-penalty", 2.0),
+        min_identity = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"].get("min-identity", 0.9),
+        min_overlap = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"].get("min-overlap", 20),
+        penalty_scale = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"].get("penalty-scale", 1.0),
+        max_cpu = lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     log:
-        "logs/{PROJECT}/{library}.paired.log"
+        "logs/{project}/{library}.paired.log"
     shell:
         """
         obipairing \
@@ -128,14 +137,14 @@ rule pair_reads:
 # Demultiplex with different barcode lengths
 rule demultiplex:
     input:
-        fastq="results/{PROJECT}/{library}.paired.fastq.gz",
-        barcodes="results/{PROJECT}/barcodes-{library}_{length}bp_only.txt"
+        fastq="results-sequences/{project}/{library}.paired.fastq.gz",
+        barcodes="results-sequences/{project}/barcodes-{library}_{length}bp_only.txt"
     output:
-        "results/{PROJECT}/{library}.demux_{length}bp.fastq.gz"
+        temp("results-sequences/{project}/{library}.demux_{length}bp.fastq.gz")
     params:
-        max_cpu=config["parameters"].get("max-cpu", 1)
+        max_cpu=lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     log:
-        "logs/{PROJECT}/{library}.demux_{length}bp.log"
+        "logs/{project}/{library}.demux_{length}bp.log"
     shell:
         """
         obimultiplex --tag-list {input.barcodes} \
@@ -147,14 +156,14 @@ rule demultiplex:
 # Concatenate all demultiplexed files per library
 def get_demux_inputs(wildcards):
     """Get all demux files for a library based on its barcode lengths"""
-    lengths = LIBRARY_BARCODE_LENGTHS[wildcards.library]
-    return [f"results/{wildcards.PROJECT}/{wildcards.library}.demux_{length}bp.fastq.gz" for length in lengths]
+    lengths = LIBRARY_BARCODE_LENGTHS[wildcards.project][wildcards.library]
+    return [f"results-sequences/{wildcards.project}/{wildcards.library}.demux_{length}bp.fastq.gz" for length in lengths]
 
 rule concat_barcodes:
     input:
         get_demux_inputs
     output:
-        temp("results/{PROJECT}/{library}.demux.fastq.gz")
+        temp("results-sequences/{project}/{library}.demux.fastq.gz")
     shell:
         """
         cat {input} > {output}

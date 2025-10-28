@@ -1,32 +1,20 @@
-# Project settings
-project: "ZSG3"
+## Global processing parameters
+# These parameters will be applied to all projects and libraries,
+# unless overridden in the specific project or library.
 
-# Libraries to process
-libraries:
-  ZSSG3_MET1:
-    forward: "/Users/ibpan/sedaDNA/ZSG3_MET1_EKDL250005403-1A_232LC3LT3_L3_1.fq.gz"
-    reverse: "/Users/ibpan/sedaDNA/ZSG3_MET1_EKDL250005403-1A_232LC3LT3_L3_2.fq.gz"
-    barcode_file: "/Users/ibpan/sedaDNA/barcodes-ZSG3_MET1.txt"
-  ZSSG3_MET5:
-    forward: "/Users/ibpan/sedaDNA/ZSG3_MET5_EKDL250005407-1A_232LC3LT3_L3_1.fq.gz"
-    reverse: "/Users/ibpan/sedaDNA/ZSG3_MET5_EKDL250005407-1A_232LC3LT3_L3_2.fq.gz"
-    barcode_file: "/Users/ibpan/sedaDNA/barcodes-ZSG3_MET5.txt"
-
-reference_dbs:
-  PhyloAlps: "data/ref_db/Alps_GH_clean_edit.cl.final_20-07-21.fasta"
-  ArctBorBryo: "data/ref_db/arctborbryo.gh.fixed.final_20-07-21.fasta"
-  EMBL143: "data/ref_db/GH_143_no-env_clean.final_20-07-21.fasta"
-  PhyloNorway: "data/ref_db/Norway_GH_clean_edit.cl.final_20-07-21.fasta"
-
-# Processing parameters
-barcodes:
-  matching: strict
-  primer_mismatches: 2
-  indels: false
-
-parameters:
+parameters: &global_params
   # General settings:
   max-cpu: 8             # <INTEGER> maximum number of CPUs to use (default 1).
+  reference_dbs:
+      PhyloAlps: "data/ref_db/Alps_GH_clean_edit.cl.final_20-07-21.fasta"
+      ArctBorBryo: "data/ref_db/arctborbryo.gh.fixed.final_20-07-21.fasta"
+      EMBL143: "data/ref_db/GH_143_no-env_clean.final_20-07-21.fasta"
+      PhyloNorway: "data/ref_db/Norway_GH_clean_edit.cl.final_20-07-21.fasta"
+  # Demultiplexing parameters:
+  demultiplexing:
+    matching: strict
+    primer_mismatches: 2
+    indels: false
   # Merging parameters for obipairing:
   obipairing:
     gap-penalty: 2.0       # <FLOAT64>: gap penalty expressed as the multiply factor applied to the mismatch score between two nucleotides with a quality of 40 (default 2.0)
@@ -42,7 +30,7 @@ parameters:
     ratio: 0.05            # <FLOAT64> ratio to consider a sequence as an error of another sequence (default 0.05).
     distance: 1            # <INTEGER> maximum distance to consider two sequences as related (default 1).
     detect_chimera: false  # <BOOLEAN> if true, dereplicate sequences before filtering (default false).
-  # final filters on OTU tables to remove low abundance sequences:
+  # final filters on OTU tables to flag low-abundance and low-replicability sequences:
   seq_filters:
     reads_within: 3        # <INTEGER> minimum number of reads within a sample to keep an OTU (default 3)
     reads_across: 10       # <INTEGER> minimum number of reads across all samples to keep an OTU (default 10)
@@ -50,8 +38,41 @@ parameters:
   # final filters for taxonomic assignments to remove low confidence assignments:
   tax_filters:
     min_identity: 1     # <FLOAT64> minimum identity to keep a sequence assignment (default 1.0)
-    db_prefix: "PhyloAlps"  # <LIST> database prefixes to apply the min_identity filter to (default: [])
   plotting:
     top_n_taxa: 200        # <INTEGER> number of top taxa to show in heatmap (default 20)
     width: 10             # <INTEGER> width of heatmap plot (default 10)
     height: 15            # <INTEGER> height of heatmap plot (default 8)
+
+## Projects configuration
+# Each project can have multiple reference databases and multiple libraries.
+
+projects:
+  p6_loop:
+    libraries:
+      ZSSG3_MET1:
+        forward: "/Users/ibpan/sedaDNA/ZSG3_MET1_EKDL250005403-1A_232LC3LT3_L3_1.fq.gz"
+        reverse: "/Users/ibpan/sedaDNA/ZSG3_MET1_EKDL250005403-1A_232LC3LT3_L3_2.fq.gz"
+        barcode_file: "/Users/ibpan/sedaDNA/barcodes-ZSG3_MET1.txt"
+      ZSSG3_MET5:
+        forward: "/Users/ibpan/sedaDNA/ZSG3_MET5_EKDL250005407-1A_232LC3LT3_L3_1.fq.gz"
+        reverse: "/Users/ibpan/sedaDNA/ZSG3_MET5_EKDL250005407-1A_232LC3LT3_L3_2.fq.gz"
+        barcode_file: "/Users/ibpan/sedaDNA/barcodes-ZSG3_MET5.txt"
+    parameters:
+        <<: *global_params # inherit global parameters
+  
+#  coi-mammals:
+#    libraries:
+#      ZSSG3_COI1:
+#        forward: "/Users/ibpan/sedaDNA/ZSG3_COI1_EKDL250005401-1A_232LC3LT3_L3_1.fq.gz"
+#        reverse: "/Users/ibpan/sedaDNA/ZSG3_COI1_EKDL250005401-1A_232LC3LT3_L3_2.fq.gz"
+#        barcode_file: "/Users/ibpan/sedaDNA/barcodes-ZSG3_COI1.txt"
+#      ZSSG3_COI5:
+#        forward: "/Users/ibpan/sedaDNA/ZSG3_COI5_EKDL250005405-1A_232LC3LT3_L3_1.fq.gz"
+#        reverse: "/Users/ibpan/sedaDNA/ZSG3_COI5_EKDL250005405-1A_232LC3LT3_L3_2.fq.gz"
+#        barcode_file: "/Users/ibpan/sedaDNA/barcodes-ZSG3_COI5.txt"
+#    parameters:
+#        <<: *global_params # inherit global parameters
+#        reference_dbs:
+#          Mammal16s: "data/mammal16s-combined_uniq_id_familyfixed_len_FINAL.fasta"
+
+
