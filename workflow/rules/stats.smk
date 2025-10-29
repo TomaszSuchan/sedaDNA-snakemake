@@ -3,9 +3,10 @@ rule raw_stats:
         lambda wildcards: config["projects"][wildcards.project]["libraries"][wildcards.library]["forward"]
     output:
         "stats/{project}/{library}.raw_stats.json"
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     shell:
         """
-        obisummary {input} > {output}
+        obisummary --max-cpu {threads} {input} > {output}
         """
 
 rule pair_stats:
@@ -13,9 +14,10 @@ rule pair_stats:
         "results-sequences/{project}/{library}.paired.fastq.gz"
     output:
         "stats/{project}/{library}.pair_stats.json"
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     shell:
         """
-        obisummary {input} > {output}
+        obisummary --max-cpu {threads} {input} > {output}
         """
 
 rule demux_stats:
@@ -23,9 +25,10 @@ rule demux_stats:
         "results-sequences/{project}/{library}.demux.fastq.gz"
     output:
         "stats/{project}/{library}.demux_stats.json"
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     shell:
         """
-        obisummary {input} > {output}
+        obisummary --max-cpu {threads} {input} > {output}
         """
 
 rule merge_json_read_counts:

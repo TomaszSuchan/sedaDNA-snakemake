@@ -31,7 +31,8 @@ rule classify:
         time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obitag"].get("time", 60)
     shell:
         """
-        obitag -t {input.taxonomy} \
+        obitag --max-cpu {threads} \
+        -t {input.taxonomy} \
         -R {params.db} \
         {input.fasta} \
         > {output}
@@ -45,7 +46,8 @@ rule remove_annotations:
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     shell:
         """
-        obiannotate  --delete-tag=obiclean_head \
+        obiannotate  --max-cpu {threads} \
+             --delete-tag=obiclean_head \
              --delete-tag=obiclean_headcount \
              --delete-tag=obiclean_internalcount \
              --delete-tag=obiclean_samplecount \
@@ -61,9 +63,11 @@ rule export_motu_tables:
         "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
     output:
         "results-classified/{project}/{project}-{db}.motu_table.csv"
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     shell:
         """
-        obimatrix --map obiclean_weight \
+        obimatrix --max-cpu {threads} \
+        --map obiclean_weight \
           {input} \
           > {output}
         """
@@ -73,9 +77,11 @@ rule export_classification_tables:
         "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
     output:
         "results-classified/{project}/{project}-{db}.classification_table.csv"
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     shell:
         """
-        obicsv --auto -i -s \
+        obicsv --max-cpu {threads} \
+        --auto -i -s \
         {input} \
         > {output}
         """

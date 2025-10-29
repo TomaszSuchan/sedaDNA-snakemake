@@ -11,12 +11,6 @@ parameters: &global_params
       ArctBorBryo: "data/ref_db/arctborbryo.gh.fixed.final_20-07-21.fasta"
       EMBL143: "data/ref_db/GH_143_no-env_clean.final_20-07-21.fasta"
       PhyloNorway: "data/ref_db/Norway_GH_clean_edit.cl.final_20-07-21.fasta"
-  # Demultiplexing parameters:
-  demultiplexing:
-    matching: strict
-    primer_mismatches: 2
-    indels: false
-    time: 30               # <INTEGER> maximum time (in minutes) to spend trying to demultiplex a library (default 30).
   # Merging parameters for obipairing:
   obipairing:
     gap-penalty: 2.0       # <FLOAT64>: gap penalty expressed as the multiply factor applied to the mismatch score between two nucleotides with a quality of 40 (default 2.0)
@@ -24,15 +18,27 @@ parameters: &global_params
     min-overlap: 20        # <INTEGER> minimum overlap between both the reads to consider the alignment (default: 20).
     penalty-scale: 1.0     # <FLOAT64> scale factor applied to the mismatch score and the gap penalty (default 1.0).
     time: 60               # <INTEGER> maximum time (in minutes) to spend trying to merge a read pair (default 60).
+  # Demultiplexing parameters:
+  obimultiplex:
+    matching: strict
+    primer_mismatches: 2
+    indels: false
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to demultiplex a library (default 60).
+  # Dereplication parameters:
+  obiuniq:
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to dereplicate sequences (default 60).
   # Minimum count filtering:
   filtering:
     min-count: 2           # <INTEGER> minimum count to keep a sequence (default 2)
     min-length: 10         # <INTEGER> minimum length to keep a sequence (default 10)
+    time: 15              # <INTEGER> maximum time (in minutes) to spend trying to filter sequences (default 15). 
   # Filtering parameters for obiclean:
   obiclean:
     ratio: 0.05            # <FLOAT64> ratio to consider a sequence as an error of another sequence (default 0.05).
     distance: 1            # <INTEGER> maximum distance to consider two sequences as related (default 1).
     detect_chimera: false  # <BOOLEAN> if true, dereplicate sequences before filtering (default false).
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to clean sequences (default 60).
+  # Taxonomic assignment parameters for obitag:
   obitag:
     time: 60               # <INTEGER> maximum time (in minutes) to spend trying to classify a sequence (default 60).
   # final filters on OTU tables to flag low-abundance and low-replicability sequences:

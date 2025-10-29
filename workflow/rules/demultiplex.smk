@@ -76,9 +76,9 @@ rule split_barcodes:
     output:
         "results-sequences/{project}/barcodes-{library}_{length}bp_only.txt"
     params:
-        matching=lambda wildcards: config["projects"][wildcards.project]["parameters"]["demultiplexing"]["matching"],
-        primer_mismatches=lambda wildcards: config["projects"][wildcards.project]["parameters"]["demultiplexing"]["primer_mismatches"],
-        indels=lambda wildcards: str(config["projects"][wildcards.project]["parameters"]["demultiplexing"]["indels"]).lower()
+        matching=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"]["matching"],
+        primer_mismatches=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"]["primer_mismatches"],
+        indels=lambda wildcards: str(config["projects"][wildcards.project]["parameters"]["obipairing"]["indels"]).lower()
     run:
         # Read the barcode CSV file
         df = pd.read_csv(input.barcodes)
@@ -117,7 +117,6 @@ rule pair_reads:
         min_identity = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"].get("min-identity", 0.9),
         min_overlap = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"].get("min-overlap", 20),
         penalty_scale = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"].get("penalty-scale", 1.0),
-        max_cpu = lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     log:
         "logs/{project}/{library}.paired.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
@@ -131,7 +130,7 @@ rule pair_reads:
         --min-identity {params.min_identity} \
         --min-overlap {params.min_overlap} \
         --penalty-scale {params.penalty_scale} \
-        --max-cpu {params.max_cpu} 2> {log} | \
+        --max-cpu {threads} 2> {log} | \
         obigrep \
         -p 'annotations["mode"]=="alignment"' \
         --compress > {output} 2>> {log}
@@ -144,17 +143,15 @@ rule demultiplex:
         barcodes="results-sequences/{project}/barcodes-{library}_{length}bp_only.txt"
     output:
         temp("results-sequences/{project}/{library}.demux_{length}bp.fastq.gz")
-    params:
-        max_cpu=lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     log:
         "logs/{project}/{library}.demux_{length}bp.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["demultiplexing"].get("time", 60)
+        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obimultiplex"].get("time", 60)
     shell:
         """
         obimultiplex --tag-list {input.barcodes} \
-        --max-cpu {params.max_cpu} \
+        --max-cpu {threads} \
         --compress \
         {input.fastq} > {output} 2> {log}
         """

@@ -3,10 +3,13 @@ rule dereplicate:
         "results-sequences/{project}/{library}.demux.fastq.gz"
     output:
         temp("results-sequences/{project}/{library}.demux.uniq.fasta.gz")
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obimultiplex"].get("time", 60)
     shell:
         """
-        obiuniq -m sample {input} | \
-        obiannotate -k count -k merged_sample --compress > \
+        obiuniq --max-cpu {threads} -m sample {input} | \
+        obiannotate --max-cpu {threads} -k count -k merged_sample --compress > \
         {output}
         """
 
@@ -18,9 +21,12 @@ rule filter_counts:
     params:
         min_count = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-count", 2),
         min_length = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-length", 10)
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 15)
     shell:
         """
-        obigrep --min-length {params.min_length} \
+        obigrep --max-cpu {threads} --min-length {params.min_length} \
         --min-count {params.min_count} {input} > {output}
         """
 
@@ -35,9 +41,13 @@ rule denoise:
         ratio = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiclean"].get("ratio", 0.05),
         distance = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiclean"].get("distance", 1),
         chimera_detection_flag = lambda wildcards: "--detect-chimera" if config["projects"][wildcards.project]["parameters"]["obiclean"].get("detect_chimera", False) else ""
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiclean"].get("time", 60)
     shell:
         """
-        obiclean --ratio {params.ratio} \
+        obiclean --max-cpu {threads} \
+        --ratio {params.ratio} \
         --head \
         --distance {params.distance} \
         {params.chimera_detection_flag} \
