@@ -10,6 +10,8 @@ rule process_motu:
         reads_replicates = lambda wildcards: config["projects"][wildcards.project]["parameters"]["seq_filters"].get("reads_replicates", 3)
     conda:
         "../envs/r.yaml"
+    resources:
+        mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
         Rscript workflow/scripts/process_motu.R \
@@ -31,6 +33,8 @@ rule cluster_taxa:
         min_identity = lambda wildcards: config["projects"][wildcards.project]["parameters"]["tax_filters"].get("min_identity", 1.0)
     conda:
         "../envs/r.yaml"
+    resources:
+        mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
         Rscript workflow/scripts/cluster_taxa.R \
@@ -51,6 +55,8 @@ rule plot_taxa_heatmap_log:
         height = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("height", 8)
     conda:
         "../envs/r.yaml"
+    resources:
+        mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
         Rscript workflow/scripts/plot_taxa_heatmap.R \
@@ -71,6 +77,8 @@ rule plot_taxa_heatmap:
         height = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("height", 8)
     conda:
         "../envs/r.yaml"
+    resources:
+        mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
         Rscript workflow/scripts/plot_taxa_heatmap.R \
