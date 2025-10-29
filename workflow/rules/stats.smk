@@ -4,6 +4,8 @@ rule raw_stats:
     output:
         "stats/{project}/{library}.raw_stats.json"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
     shell:
         """
         obisummary --max-cpu {threads} {input} > {output}
@@ -15,6 +17,8 @@ rule pair_stats:
     output:
         "stats/{project}/{library}.pair_stats.json"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
     shell:
         """
         obisummary --max-cpu {threads} {input} > {output}
@@ -26,6 +30,8 @@ rule demux_stats:
     output:
         "stats/{project}/{library}.demux_stats.json"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
     shell:
         """
         obisummary --max-cpu {threads} {input} > {output}

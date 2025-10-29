@@ -5,6 +5,7 @@
 parameters: &global_params
   # General settings:
   max-cpu: 8            # <INTEGER> maximum number of CPU threads to use for processing (default 1)
+  mem-per-cpu: 3850     # <INTEGER> amount of memory (in MB) to allocate per CPU thread (default 3850 - for plgrid ARES cluster)
   # Reference databases for taxonomic assignment:
   reference_dbs:
       PhyloAlps: "data/ref_db/Alps_GH_clean_edit.cl.final_20-07-21.fasta"

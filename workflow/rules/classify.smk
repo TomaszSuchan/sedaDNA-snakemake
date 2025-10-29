@@ -28,7 +28,8 @@ rule classify:
         db = lambda wildcards: config["projects"][wildcards.project]["parameters"]["reference_dbs"][wildcards.db]
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obitag"].get("time", 60)
+        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obitag"].get("time", 60),
+        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
     shell:
         """
         obitag --max-cpu {threads} \
@@ -44,6 +45,8 @@ rule remove_annotations:
     output:
         "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
     shell:
         """
         obiannotate  --max-cpu {threads} \
@@ -64,6 +67,8 @@ rule export_motu_tables:
     output:
         "results-classified/{project}/{project}-{db}.motu_table.csv"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
     shell:
         """
         obimatrix --max-cpu {threads} \
@@ -78,6 +83,8 @@ rule export_classification_tables:
     output:
         "results-classified/{project}/{project}-{db}.classification_table.csv"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
     shell:
         """
         obicsv --max-cpu {threads} \
