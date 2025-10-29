@@ -76,9 +76,9 @@ rule split_barcodes:
     output:
         "results-sequences/{project}/barcodes-{library}_{length}bp_only.txt"
     params:
-        matching=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"]["matching"],
-        primer_mismatches=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"]["primer_mismatches"],
-        indels=lambda wildcards: str(config["projects"][wildcards.project]["parameters"]["obipairing"]["indels"]).lower()
+        matching=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obimultiplex"]["matching"],
+        primer_mismatches=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obimultiplex"]["primer_mismatches"],
+        indels=lambda wildcards: str(config["projects"][wildcards.project]["parameters"]["obimultiplex"]["indels"]).lower()
     run:
         # Read the barcode CSV file
         df = pd.read_csv(input.barcodes)
