@@ -8,14 +8,28 @@ rule dereplicate:
         runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obimultiplex"].get("time", 60)
     shell:
         """
-        obiuniq --max-cpu {threads} -m sample {input} | \
-        obiannotate --max-cpu {threads} -k count -k merged_sample --compress > \
-        {output}
+        obiuniq --max-cpu {threads} -m sample {input} > {output}
+        """
+
+rule filter_annotations:
+    input:
+        "results-sequences/{project}/{library}.demux.uniq.fasta.gz"
+    output:
+        temp("results-sequences/{project}/{library}.demux.uniq.counts.fasta.gz")
+    params:
+        annotation_db = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("annotation-db", ""),
+        min_identity = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-identity", 0.9)
+    threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
+    resources:
+        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 60)
+    shell:
+        """
+        obiannotate --max-cpu {threads} -k count -k merged_sample {input} > {output}
         """
 
 rule filter_counts:
     input:
-        "results-sequences/{project}/{library}.demux.uniq.fasta.gz"
+        "results-sequences/{project}/{library}.demux.uniq.counts.fasta.gz"
     output:
         temp("results-sequences/{project}/{library}.demux.uniq.filtered.fasta.gz")
     params:
