@@ -5,8 +5,8 @@ rule dereplicate:
         temp("results-sequences/{project}/{library}.demux.uniq.fasta.gz")
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiuniq"].get("time", 60),
-        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
+        runtime = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiuniq"].get("time", 60),
+        mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
         obiuniq --max-cpu {threads} -m sample {input} > {output}
@@ -22,8 +22,8 @@ rule filter_annotations:
         min_identity = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-identity", 0.9)
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 60),
-        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
+        runtime = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 60),
+        mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
         obiannotate --max-cpu {threads} -k count -k merged_sample {input} > {output}
@@ -39,8 +39,8 @@ rule filter_counts:
         min_length = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-length", 10)
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 60),
-        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
+        runtime = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 60),
+        mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
         obigrep --max-cpu {threads} --min-length {params.min_length} \
@@ -60,8 +60,8 @@ rule denoise:
         chimera_detection_flag = lambda wildcards: "--detect-chimera" if config["projects"][wildcards.project]["parameters"]["obiclean"].get("detect_chimera", False) else ""
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiclean"].get("time", 60),
-        mem_mb = config["max-cpu"] * config["mem-per-cpu"]
+        runtime = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiclean"].get("time", 60),
+        mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
         obiclean --max-cpu {threads} \
