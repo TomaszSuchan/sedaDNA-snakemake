@@ -5,7 +5,7 @@ rule dereplicate:
         temp("results-sequences/{project}/{library}.demux.uniq.fasta.gz")
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obimultiplex"].get("time", 60)
+        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obimultiplex"].get("time", 60)
     shell:
         """
         obiuniq --max-cpu {threads} -m sample {input} | \
@@ -23,7 +23,7 @@ rule filter_counts:
         min_length = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-length", 10)
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 15)
+        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 15)
     shell:
         """
         obigrep --max-cpu {threads} --min-length {params.min_length} \
@@ -43,7 +43,7 @@ rule denoise:
         chimera_detection_flag = lambda wildcards: "--detect-chimera" if config["projects"][wildcards.project]["parameters"]["obiclean"].get("detect_chimera", False) else ""
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiclean"].get("time", 60)
+        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiclean"].get("time", 60)
     shell:
         """
         obiclean --max-cpu {threads} \

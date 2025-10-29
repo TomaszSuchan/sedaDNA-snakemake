@@ -28,7 +28,7 @@ rule classify:
         db = lambda wildcards: config["projects"][wildcards.project]["parameters"]["reference_dbs"][wildcards.db]
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obitag"].get("time", 60)
+        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obitag"].get("time", 60)
     shell:
         """
         obitag --max-cpu {threads} \

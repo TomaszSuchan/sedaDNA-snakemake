@@ -121,7 +121,7 @@ rule pair_reads:
         "logs/{project}/{library}.paired.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"].get("time", 60)
+        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obipairing"].get("time", 60)
     shell:
         """
         obipairing \
@@ -147,7 +147,7 @@ rule demultiplex:
         "logs/{project}/{library}.demux_{length}bp.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        time=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obimultiplex"].get("time", 60)
+        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["obimultiplex"].get("time", 60)
     shell:
         """
         obimultiplex --tag-list {input.barcodes} \
