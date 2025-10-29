@@ -4,6 +4,8 @@ rule process_motu:
         classification_table = "results-classified/{project}/{project}-{db}.classification_table.csv"
     output:
         "results-tables/{project}/{project}-{db}-combined_classification_table.csv"
+    log:
+        "logs/{project}/{project}-{db}-combined_classification_table.log"
     params:
         reads_within = lambda wildcards: config["projects"][wildcards.project]["parameters"]["seq_filters"].get("reads_within", 3),
         reads_across = lambda wildcards: config["projects"][wildcards.project]["parameters"]["seq_filters"].get("reads_across", 10),
@@ -21,7 +23,7 @@ rule process_motu:
             {params.reads_within} \
             {params.reads_across} \
             {params.reads_replicates} \
-            {output}
+            {output} 2> {log}
         """
 
 rule cluster_taxa:
@@ -29,6 +31,8 @@ rule cluster_taxa:
         "results-tables/{project}/{project}-{db}-combined_classification_table.csv"
     output:
         "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv"
+    log:
+        "logs/{project}/{project}-{db}-clustered_taxa_table.log"
     params:
         min_identity = lambda wildcards: config["projects"][wildcards.project]["parameters"]["tax_filters"].get("min_identity", 1.0)
     conda:
@@ -40,7 +44,7 @@ rule cluster_taxa:
         Rscript workflow/scripts/cluster_taxa.R \
             {input} \
             {params.min_identity} \
-            {output}
+            {output} 2> {log}
         """
 
 rule plot_taxa_heatmap_log:
@@ -48,6 +52,8 @@ rule plot_taxa_heatmap_log:
         "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv"
     output:
         "results-plots/{project}/{project}-{db}-taxa_heatmap_log.pdf"
+    log:
+        "logs/{project}/{project}-{db}-taxa_heatmap_log.log"
     params:
         log_transform = "TRUE",
         top_n_taxa = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("top_n_taxa", 50),
@@ -62,7 +68,7 @@ rule plot_taxa_heatmap_log:
         Rscript workflow/scripts/plot_taxa_heatmap.R \
             {params.log_transform} {params.top_n_taxa} {params.width} {params.height} \
             {input} \
-            {output}
+            {output} 2> {log}
         """
 
 rule plot_taxa_heatmap:
@@ -70,6 +76,8 @@ rule plot_taxa_heatmap:
         "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv"
     output:
         "results-plots/{project}/{project}-{db}-taxa_heatmap.pdf"
+    log:
+        "logs/{project}/{project}-{db}-taxa_heatmap.log"
     params:
         log_transform = "FALSE",
         top_n_taxa = lambda wildcards: config["projects"][wildcards.project]["parameters"]["plotting"].get("top_n_taxa", 50),
@@ -84,5 +92,5 @@ rule plot_taxa_heatmap:
         Rscript workflow/scripts/plot_taxa_heatmap.R \
             {params.log_transform} {params.top_n_taxa} {params.width} {params.height} \
             {input} \
-            {output}
+            {output} 2> {log}
         """

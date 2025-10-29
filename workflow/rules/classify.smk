@@ -24,6 +24,8 @@ rule classify:
         taxonomy = "data/ncbitaxo.tgz"
     output:
         temp("results-classified/{project}/{project}-{db}.classified.fasta")
+    log:
+        "logs/{project}/{project}-{db}.classified.log"
     params:
         db = lambda wildcards: config["projects"][wildcards.project]["parameters"]["reference_dbs"][wildcards.db]
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
@@ -36,7 +38,7 @@ rule classify:
         -t {input.taxonomy} \
         -R {params.db} \
         {input.fasta} \
-        > {output}
+        > {output} 2> {log}
         """
 
 rule remove_annotations:
@@ -44,6 +46,8 @@ rule remove_annotations:
         "results-classified/{project}/{project}-{db}.classified.fasta"
     output:
         "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
+    log:
+        "logs/{project}/{project}-{db}.classified.no_annot.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
@@ -58,7 +62,7 @@ rule remove_annotations:
              {input} | \
              obiannotate --number | \
              obiannotate --set-id 'sprintf("seq%04d",annotations.seq_number)' \
-             > {output}
+             > {output} 2> {log}
         """
 
 rule export_motu_tables:
@@ -66,6 +70,8 @@ rule export_motu_tables:
         "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
     output:
         "results-classified/{project}/{project}-{db}.motu_table.csv"
+    log:
+        "logs/{project}/{project}-{db}.motu_table.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
@@ -74,7 +80,7 @@ rule export_motu_tables:
         obimatrix --max-cpu {threads} \
         --map obiclean_weight \
           {input} \
-          > {output}
+          > {output} 2> {log}
         """
 
 rule export_classification_tables:
@@ -82,6 +88,8 @@ rule export_classification_tables:
         "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
     output:
         "results-classified/{project}/{project}-{db}.classification_table.csv"
+    log:
+        "logs/{project}/{project}-{db}.classification_table.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
@@ -90,5 +98,5 @@ rule export_classification_tables:
         obicsv --max-cpu {threads} \
         --auto -i -s \
         {input} \
-        > {output}
+        > {output} 2> {log}
         """

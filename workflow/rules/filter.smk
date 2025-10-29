@@ -3,13 +3,15 @@ rule dereplicate:
         "results-sequences/{project}/{library}.demux.fastq.gz"
     output:
         temp("results-sequences/{project}/{library}.demux.uniq.fasta.gz")
+    log:
+        "logs/{project}/{library}.demux.uniq.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
         runtime = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiuniq"].get("time", 60),
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
-        obiuniq --max-cpu {threads} -m sample {input} > {output}
+        obiuniq --max-cpu {threads} -m sample {input} > {output} 2> {log}
         """
 
 rule filter_annotations:
@@ -17,6 +19,8 @@ rule filter_annotations:
         "results-sequences/{project}/{library}.demux.uniq.fasta.gz"
     output:
         temp("results-sequences/{project}/{library}.demux.uniq.counts.fasta.gz")
+    log:
+        "logs/{project}/{library}.demux.uniq.counts.log"
     params:
         annotation_db = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("annotation-db", ""),
         min_identity = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-identity", 0.9)
@@ -26,7 +30,7 @@ rule filter_annotations:
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
-        obiannotate --max-cpu {threads} -k count -k merged_sample {input} > {output}
+        obiannotate --max-cpu {threads} -k count -k merged_sample {input} > {output} 2> {log}
         """
 
 rule filter_counts:
@@ -34,6 +38,8 @@ rule filter_counts:
         "results-sequences/{project}/{library}.demux.uniq.counts.fasta.gz"
     output:
         temp("results-sequences/{project}/{library}.demux.uniq.filtered.fasta.gz")
+    log:
+        "logs/{project}/{library}.demux.uniq.filtered.log"
     params:
         min_count = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-count", 2),
         min_length = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-length", 10)
@@ -44,7 +50,7 @@ rule filter_counts:
     shell:
         """
         obigrep --max-cpu {threads} --min-length {params.min_length} \
-        --min-count {params.min_count} {input} > {output}
+        --min-count {params.min_count} {input} > {output} 2> {log}
         """
 
 rule denoise:
@@ -53,7 +59,7 @@ rule denoise:
     output:
         "results-sequences/{project}/{library}.demux.uniq.filtered.denoised.fasta.gz"
     log:
-        "logs/{project}/{library}.denoise.log"
+        "logs/{project}/{library}.demux.uniq.filtered.denoised.log"
     params:
         ratio = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiclean"].get("ratio", 0.05),
         distance = lambda wildcards: config["projects"][wildcards.project]["parameters"]["obiclean"].get("distance", 1),
