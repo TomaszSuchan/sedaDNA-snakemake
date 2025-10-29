@@ -31,7 +31,7 @@ parameters: &global_params
   filtering:
     min-count: 2           # <INTEGER> minimum count to keep a sequence (default 2)
     min-length: 10         # <INTEGER> minimum length to keep a sequence (default 10)
-    time: 15              # <INTEGER> maximum time (in minutes) to spend trying to filter sequences (default 15). 
+    time: 60              # <INTEGER> maximum time (in minutes) to spend trying to filter sequences (default 60). 
   # Filtering parameters for obiclean:
   obiclean:
     ratio: 0.05            # <FLOAT64> ratio to consider a sequence as an error of another sequence (default 0.05).

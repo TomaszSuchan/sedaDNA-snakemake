@@ -23,7 +23,7 @@ rule filter_counts:
         min_length = lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("min-length", 10)
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
-        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 15)
+        runtime=lambda wildcards: config["projects"][wildcards.project]["parameters"]["filtering"].get("time", 60)
     shell:
         """
         obigrep --max-cpu {threads} --min-length {params.min_length} \
