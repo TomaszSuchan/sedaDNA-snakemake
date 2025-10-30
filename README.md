@@ -492,28 +492,7 @@ Contains error messages (if any).
 
 ---
 
-## 6. Visualization
-
-### Taxa Heatmaps
-
-**Rules:** `plot_taxa_heatmap`, `plot_taxa_heatmap_log`
-
-Generates heatmaps showing taxonomic composition across samples:
-- **Linear scale**: Shows absolute abundance patterns
-- **Log scale**: Better for visualizing rare taxa
-
-**Parameters** (from `config["parameters"]["plotting"]`):
-- **top_n_taxa** `<INTEGER>`: Number of most abundant taxa to display (default: 200)
-- **width** `<INTEGER>`: Plot width in inches (default: 10)
-- **height** `<INTEGER>`: Plot height in inches (default: 15)
-
-**Output:**
-- `results-plots/{project}/{project}-{db}-taxa_heatmap.pdf`
-- `results-plots/{project}/{project}-{db}-taxa_heatmap_log.pdf`
-
----
-
-## 7. Complete Filtering Pipeline Summary
+## 6. Complete Filtering Pipeline Summary
 ```
 Raw paired-end reads
     ↓ [obipairing: Pairing & merging]
@@ -544,7 +523,7 @@ Final taxa-location combinations: ~500
 
 ---
 
-## 8. Output Directory Structure
+## 7. Output Directory Structure
 ```
 results/
 ├── {project}/
@@ -570,11 +549,6 @@ results-tables/
 │   ├── {project}-{db}-clustered_taxa_table.csv
 │   └── {project}-{db}-clustered_taxa_info.txt
 
-results-plots/
-├── {project}/
-│   ├── {project}-{db}-taxa_heatmap.pdf
-│   └── {project}-{db}-taxa_heatmap_log.pdf
-
 stats/
 ├── {project}/
 │   ├── {library}.raw_stats.json
@@ -592,7 +566,7 @@ logs/
 
 ---
 
-## 9. Citation
+## 8. Citation
 
 If using this pipeline, please cite:
 
@@ -605,7 +579,7 @@ If using this pipeline, please cite:
 
 ---
 
-## 10. Advanced Usage
+## 9. Advanced Usage
 
 ### Running Specific Steps
 

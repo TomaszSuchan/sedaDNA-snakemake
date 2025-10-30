@@ -63,14 +63,4 @@ rule all:
         [expand("results-tables/{project}/{project}-{db}-clustered_taxa_table.csv",
                 project=project,
                 db=PROJECT_DBS[project])
-         for project in PROJECTS],
-        # Taxa heatmap plot - all projects, all databases
-        [expand("results-plots/{project}/{project}-{db}-taxa_heatmap.pdf",
-                project=project,
-                db=PROJECT_DBS[project])
-         for project in PROJECTS],
-        # Taxa heatmap plot (log) - all projects, all databases
-        [expand("results-plots/{project}/{project}-{db}-taxa_heatmap_log.pdf",
-                project=project,
-                db=PROJECT_DBS[project])
          for project in PROJECTS]
