@@ -4,10 +4,10 @@ rule process_motu:
         classification_table = "results-classified/{project}/{project}-{db}.classification_table.csv",
         demultiplex_stats = "stats/{project}/{project}.demux_stats_combined.json"
     output:
-        table = "results-tables/{project}/{project}-{db}-combined_classification_table.csv",
-        info = "results-tables/{project}/{project}-{db}-combined_classification_info.txt"
+        table = "results-tables/{project}/{project}-{db}-classification_table.csv"
     log:
-        "logs/{project}/{project}-{db}-combined_classification_table.log"
+        stderr = "logs/{project}/{project}-{db}-classification_table.log",
+        stdout = "results-tables/{project}/{project}-{db}-classification_info.txt"
     params:
         reads_within = lambda wildcards: config["projects"][wildcards.project]["parameters"]["seq_filters"].get("reads_within", 3),
         reads_across = lambda wildcards: config["projects"][wildcards.project]["parameters"]["seq_filters"].get("reads_across", 10),
@@ -26,17 +26,17 @@ rule process_motu:
             {params.reads_within} \
             {params.reads_across} \
             {params.reads_replicates} \
-            {output.table} > {output.info} 2> {log}
+            {output.table} > {log.stdout} 2> {log.stderr}
         """
 
 rule cluster_taxa:
     input:
-        "results-tables/{project}/{project}-{db}-combined_classification_table.csv"
+        "results-tables/{project}/{project}-{db}-classification_table.csv"
     output:
-        table = "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv",
-        info = "results-tables/{project}/{project}-{db}-clustered_taxa_info.txt"
+        table = "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv"
     log:
-        "logs/{project}/{project}-{db}-clustered_taxa_table.log"
+        stderr = "logs/{project}/{project}-{db}-clustered_taxa_table.log",
+        stdout = "results-tables/{project}/{project}-{db}-clustered_taxa_info.txt"
     params:
         min_identity = lambda wildcards: config["projects"][wildcards.project]["parameters"]["tax_filters"].get("min_identity", 1.0)
     conda:
@@ -48,8 +48,7 @@ rule cluster_taxa:
         Rscript workflow/scripts/cluster_taxa.R \
             {input} \
             {params.min_identity} \
-            {wildcards.db} \
-            {output.table} > {output.info} 2> {log}
+            {output.table} > {log.stdout} 2> {log.stderr}
         """
 
 rule plot_taxa_heatmap_log:
