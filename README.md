@@ -286,7 +286,7 @@ A sequence is flagged for removal if **ANY** condition is met:
 | `obitag_rank` | Taxonomic rank |
 | `taxon` | Taxonomic name |
 
-**Processing log:** `logs/{project}/{project}-{db}-combined_classification_table.log`
+**Processing log:** `results-tables/{project}/{project}-{db}-combined_classification_info.txt`
 
 Contains statistics on filtering at each stage.
 
@@ -311,11 +311,7 @@ Removes sequences flagged during MOTU processing.
 data %>% filter(obitag_bestid >= min_identity)
 ```
 
-Filters by taxonomic match quality (default: 0.97 or 97%):
-- 99% match → High confidence, species-level
-- 97% match → Good confidence, genus/species-level
-- 95% match → Moderate confidence, may be uncertain
-- <95% → Low confidence, removed
+Filters by taxonomic match quality (default: 1 or 100%):
 
 #### Step 3: Taxonomic Rank Filtering
 
@@ -325,9 +321,8 @@ data %>% filter(obitag_rank %in% c("species", "subgenus", "section",
                                     "genus", "family", "subfamily", "tribe"))
 ```
 
-**Excluded ranks:**
-- order, class, phylum (too broad)
-- no rank, unknown (unresolved)
+This only keeps the following ranks: species, subgenus, section, genus, family,
+subfamily, tribe. Anything above is considered too broad.
 
 **Rationale:** Family-level is minimum for meaningful ecological interpretation.
 
