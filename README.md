@@ -379,21 +379,28 @@ A sequence is flagged for removal if **ANY** condition is met:
 | Column | Description |
 |--------|-------------|
 | `core`, `depth` | Sample location identifiers |
-| `library`, `replicate` | Sequencing identifiers |
+| `sampling_batch` | Sampling batch ID |
+| `isolation_batch` | Isolation batch ID |
+| `library` | Library ID |
+| `replicate` | Technical replicate of the sample within the library |
 | `blank_type` | Sample type (SAMPLE/LB/PB/IB/SB) |
 | `sequence_id` | Unique sequence ID (e.g., seq0001) |
-| `total_reads` | Sum of reads from valid replicates |
-| `n_replicates_present` | Number of replicates ≥ threshold |
-| `weighted_avg_proportion` | Weighted proportion across replicates |
-| `replicate_summary` | Semicolon-separated read counts |
-| `proportion_summary` | Semicolon-separated proportions |
-| `not_replicated` | TRUE if replication criteria not met |
-| `in_LB/PB/IB/SB` | TRUE if present in respective blank |
-| `remove` | TRUE if flagged for removal |
-| `obitag_bestid` | Taxonomic match identity (0-1) |
-| `taxid` | NCBI taxonomy ID |
-| `obitag_rank` | Taxonomic rank |
-| `taxon` | Taxonomic name |
+| `total_reads` | Sum of reads from valid replicates after within-replicate filtering |
+| `n_replicates_present` | Number of replicates meeting the reads_within threshold for this sequence |
+| `weighted_avg_proportion` | Weighted average proportion across replicates (Σ(proportion_i × total_reads_i) / Σ(total_reads_i)) |
+| `mean_proportion` | Simple mean of replicate proportions across replicates (unweighted) |
+| `replicate_summary` | Semicolon-separated read counts per replicate (human-readable summary) |
+| `proportion_summary` | Semicolon-separated proportions per replicate (human-readable summary) |
+| `not_replicated` | TRUE if the sequence fails the replication criteria (e.g., fewer than reads_replicates) |
+| `in_SB` | TRUE if the sequence is detected in any sampling blank (SB) |
+| `in_IB` | TRUE if the sequence is detected in any isolation blank (IB) |
+| `in_LB` | TRUE if the sequence is detected in any library blank (LB) |
+| `in_PB` | TRUE if the sequence is detected in any PCR blank (PB) |
+| `remove` | TRUE if flagged for removal (not_replicated OR in_LB OR in_PB OR in_IB OR in_SB) |
+| `obitag_bestid` | Best taxonomic match identity returned by obitag (0–1) |
+| `taxid` | NCBI taxonomy identifier for the assigned taxon |
+| `obitag_rank` | Taxonomic rank returned by obitag (e.g., species, genus, family) |
+| `taxon` | Taxonomic name assigned by obitag |
 
 **Processing info:** `results-tables/{project}/{project}-{db}-classification_info.txt`
 
