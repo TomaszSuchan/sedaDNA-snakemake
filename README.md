@@ -1,4 +1,4 @@
-# sedaDNA Metabarcoding Pipeline - Complete Workflow Guide
+# sedaDNA Metabarcoding Pipeline
 
 ## Overview
 
