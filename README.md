@@ -2,7 +2,7 @@
 
 ## Overview
 
-This pipeline processes sedimentary ancient DNA (sedaDNA) metabarcoding data using OBITools, applying multi-stage quality filtering, blank contamination control, and taxonomic classification. The workflow handles multiple projects, libraries, and reference databases, with comprehensive quality control at each step.
+This pipeline processes sedimentary ancient DNA (sedaDNA) metabarcoding data using OBITools, applying multi-stage quality filtering, blank contamination control, and taxonomic classification. The workflow handles multiple projects, libraries, and reference databases.
 
 ---
 
