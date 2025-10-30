@@ -12,30 +12,101 @@ This pipeline processes sedimentary ancient DNA (sedaDNA) metabarcoding data usi
 
 Edit `config/config.yaml` to define your project structure, input files, and parameters:
 ```yaml
+## Global processing parameters
+# These parameters will be applied to all projects and libraries,
+# unless overridden in the specific project or library.
+
+parameters: &global_params
+  # General settings:
+  max-cpu: 8            # <INTEGER> maximum number of CPU threads to use for processing (default 1)
+  mem-per-cpu: 3850     # <INTEGER> amount of memory (in MB) to allocate per CPU thread (default 3850 - for plgrid ARES cluster)
+  
+  # Reference databases for taxonomic assignment:
+  reference_dbs:
+    PhyloAlps: "data/ref_db/Alps_GH_clean_edit.cl.final_20-07-21.fasta"
+    ArctBorBryo: "data/ref_db/arctborbryo.gh.fixed.final_20-07-21.fasta"
+    EMBL143: "data/ref_db/GH_143_no-env_clean.final_20-07-21.fasta"
+    PhyloNorway: "data/ref_db/Norway_GH_clean_edit.cl.final_20-07-21.fasta"
+  
+  # Merging parameters for obipairing:
+  obipairing:
+    gap-penalty: 2.0       # <FLOAT64> gap penalty expressed as the multiply factor applied to the mismatch score between two nucleotides with a quality of 40 (default 2.0)
+    min-identity: 0.9      # <FLOAT64> minimum identity between overlapped regions of the reads to consider the alignment (default 0.9)
+    min-overlap: 20        # <INTEGER> minimum overlap between both the reads to consider the alignment (default 20)
+    penalty-scale: 1.0     # <FLOAT64> scale factor applied to the mismatch score and the gap penalty (default 1.0)
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to merge a read pair (default 60)
+  
+  # Demultiplexing parameters:
+  obimultiplex:
+    matching: strict       # <STRING> matching mode: strict or fuzzy (default strict)
+    primer_mismatches: 2   # <INTEGER> maximum number of mismatches allowed in primer sequences (default 2)
+    indels: false          # <BOOLEAN> if true, allow insertions/deletions in primer matching (default false)
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to demultiplex a library (default 60)
+  
+  # Dereplication parameters:
+  obiuniq:
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to dereplicate sequences (default 60)
+  
+  # Minimum count filtering:
+  filtering:
+    min-count: 2           # <INTEGER> minimum count to keep a sequence (default 2)
+    min-length: 10         # <INTEGER> minimum length to keep a sequence (default 10)
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to filter sequences (default 60)
+  
+  # Filtering parameters for obiclean:
+  obiclean:
+    ratio: 0.05            # <FLOAT64> ratio to consider a sequence as an error of another sequence (default 0.05)
+    distance: 1            # <INTEGER> maximum distance to consider two sequences as related (default 1)
+    detect_chimera: false  # <BOOLEAN> if true, detect and flag chimeric sequences (default false)
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to clean sequences (default 60)
+  
+  # Taxonomic assignment parameters for obitag:
+  obitag:
+    time: 60               # <INTEGER> maximum time (in minutes) to spend trying to classify a sequence (default 60)
+  
+  # Final filters on OTU tables to flag low-abundance and low-replicability sequences:
+  seq_filters:
+    reads_within: 3        # <INTEGER> minimum number of reads within a single replicate to count that replicate (default 3)
+    reads_across: 10       # <INTEGER> minimum total number of reads across all valid replicates (default 10)
+    reads_replicates: 3    # <INTEGER> minimum number of replicates that must meet reads_within threshold (default 3)
+  
+  # Final filters for taxonomic assignments to remove low confidence assignments:
+  tax_filters:
+    min_identity: 0.97     # <FLOAT64> minimum taxonomic match identity to keep a sequence assignment (0-1, default 0.97)
+  
+  # Plotting parameters:
+  plotting:
+    top_n_taxa: 200        # <INTEGER> number of top taxa to show in heatmap (default 200)
+    width: 10              # <INTEGER> width of heatmap plot in inches (default 10)
+    height: 15             # <INTEGER> height of heatmap plot in inches (default 15)
+
+## Projects configuration
+# Each project can have multiple reference databases and multiple libraries.
+
 projects:
-  project_name:
+  p6_loop:
     libraries:
-      library1:
-        forward: "path/to/forward.fastq.gz"
-        reverse: "path/to/reverse.fastq.gz"
-        barcode_file: "path/to/barcodes.csv"
+      ZSSG3_MET1:
+        forward: "/path/to/forward.fq.gz"
+        reverse: "/path/to/reverse.fq.gz"
+        barcode_file: "/path/to/barcodes.txt"
+      ZSSG3_MET5:
+        forward: "/path/to/forward.fq.gz"
+        reverse: "/path/to/reverse.fq.gz"
+        barcode_file: "/path/to/barcodes.txt"
     parameters:
-      reference_dbs:
-        PhyloAlps: "path/to/phyloalps.fasta"
-        EMBL143: "path/to/embl143.fasta"
-      seq_filters:
-        reads_within: 3      # Minimum reads per replicate
-        reads_across: 10     # Minimum total reads
-        reads_replicates: 3  # Minimum number of replicates
-      tax_filters:
-        min_identity: 0.97   # Minimum taxonomic match (97%)
+        <<: *global_params # inherit global parameters
+        reference_dbs:
+          PhyloAlps: "data/ref_db/custom_db.fasta"  # override global database
 ```
+
+Parameters can be configured globally (under `parameters`) but can be overridden for specific projects as shown above.
 
 ### Prepare Barcode Files
 
 OBITools requires separate processing for barcodes of different lengths. The pipeline automatically detects barcode lengths and splits processing accordingly.
 
-**Barcode file format** (`barcodes.csv`):
+**Barcode file format** (`barcodes.txt`):
 ```csv
 experiment,sample,sample_tag,forward_primer,reverse_primer
 ZSG3,LB_ZSG3MET1_1,AACAAGCC,GGGCAATCCTGAGCCAA,CCATTGAGTCTCTGCACCTATC
@@ -98,19 +169,21 @@ snakemake --executor slurm \
 - `results/{project}/barcodes-{library}_{length}bp_only.txt`
 - `results/{project}/{library}.barcode_validation.txt`
 
-### Stage 2: Read Pairing and Quality Filtering
+### Stage 2: Read Pairing
 
 **Rule:** `pair_reads`
 
 **Process:**
 1. Pairs forward and reverse reads using `obipairing`
-2. Keeps only successfully merged reads (`mode="alignment"`)
-3. Filters by alignment quality (identity, overlap)
+2. Applies quality-based alignment parameters
+3. Keeps only successfully merged reads (filters by `mode="alignment"`)
 
-**Parameters:**
-- `gap-penalty`: Gap penalty for alignment (default: 2.0)
-- `min-identity`: Minimum identity between F/R reads (default: 0.9)
-- `min-overlap`: Minimum overlap length (default: 20bp)
+**Parameters** (from `config["parameters"]["obipairing"]`):
+- **gap-penalty** `<FLOAT64>`: Gap penalty expressed as multiply factor applied to mismatch score between two nucleotides with quality of 40 (default: 2.0)
+- **min-identity** `<FLOAT64>`: Minimum identity between overlapped regions to consider alignment valid (default: 0.9)
+- **min-overlap** `<INTEGER>`: Minimum overlap length between forward and reverse reads (default: 20 bp)
+- **penalty-scale** `<FLOAT64>`: Scale factor applied to mismatch score and gap penalty (default: 1.0)
+- **time** `<INTEGER>`: Maximum time in minutes to spend merging a read pair (default: 60)
 
 **Output:**
 - `results/{project}/{library}.paired.fastq.gz`
@@ -123,9 +196,16 @@ snakemake --executor slurm \
 1. Demultiplexes reads by sample barcode using `obimultiplex`
 2. Processes each barcode length separately
 3. Concatenates results across barcode lengths
+4. Generates read count statistics per sample
+
+**Parameters** (from `config["parameters"]["obimultiplex"]`):
+- **matching** `<STRING>`: Matching mode for barcode/primer identification - "strict" or "fuzzy" (default: strict)
+- **primer_mismatches** `<INTEGER>`: Maximum number of mismatches allowed in primer sequences (default: 2)
+- **indels** `<BOOLEAN>`: If true, allow insertions/deletions in primer matching (default: false)
+- **time** `<INTEGER>`: Maximum time in minutes to spend demultiplexing a library (default: 60)
 
 **Output:**
-- `results/{project}/{library}.demux_{length}bp.fastq.gz` (per length)
+- `results/{project}/{library}.demux_{length}bp.fastq.gz` (per barcode length)
 - `results/{project}/{library}.demux.fastq.gz` (concatenated)
 - `stats/{project}/{library}.demux_stats.json` (read counts per sample)
 
@@ -134,14 +214,34 @@ snakemake --executor slurm \
 **Rules:** `dereplicate`, `filter_counts`, `denoise`
 
 **Process:**
-1. **Dereplication** (`obiuniq`): Collapses identical sequences, counts abundance
-2. **Count filtering** (`obigrep`):
-   - Removes sequences with `< min-count` reads (default: 2)
-   - Removes sequences `< min-length` bp (default: 10)
-3. **Denoising** (`obiclean`):
-   - Identifies PCR/sequencing errors using sequence similarity
-   - Flags low-abundance variants as potential errors
-   - Optional chimera detection
+
+#### 4.1 Dereplication (`obiuniq`)
+- Collapses identical sequences
+- Counts abundance of each unique sequence
+- Retains quality scores and metadata
+
+**Parameters** (from `config["parameters"]["obiuniq"]`):
+- **time** `<INTEGER>`: Maximum time in minutes to spend dereplicating sequences (default: 60)
+
+#### 4.2 Count Filtering (`obigrep`)
+- Removes low-abundance sequences (likely errors)
+- Removes sequences below minimum length
+
+**Parameters** (from `config["parameters"]["filtering"]`):
+- **min-count** `<INTEGER>`: Minimum read count to keep a sequence (default: 2)
+- **min-length** `<INTEGER>`: Minimum sequence length in bp to keep (default: 10)
+- **time** `<INTEGER>`: Maximum time in minutes to spend filtering sequences (default: 60)
+
+#### 4.3 Denoising (`obiclean`)
+- Identifies PCR/sequencing errors using sequence similarity
+- Flags low-abundance variants as potential errors of more abundant sequences
+- Optional chimera detection
+
+**Parameters** (from `config["parameters"]["obiclean"]`):
+- **ratio** `<FLOAT64>`: Abundance ratio threshold to consider a sequence as potential error of another sequence (default: 0.05)
+- **distance** `<INTEGER>`: Maximum edit distance to consider two sequences as potentially related (default: 1)
+- **detect_chimera** `<BOOLEAN>`: If true, detect and flag chimeric sequences (default: false)
+- **time** `<INTEGER>`: Maximum time in minutes to spend cleaning sequences (default: 60)
 
 **Output:**
 - `results/{project}/{library}.demux.uniq.filtered.denoised.fasta.gz`
@@ -151,9 +251,16 @@ snakemake --executor slurm \
 **Rules:** `merge_all_libraries`, `classify`
 
 **Process:**
-1. Merges all libraries within a project
+1. Merges all libraries within a project using `obiuniq`
 2. Performs taxonomic classification against each reference database using `obitag`
-3. Creates MOTU tables and classification tables
+3. Creates MOTU tables (read count matrices) and classification tables
+
+**Parameters** (from `config["parameters"]["obitag"]`):
+- **time** `<INTEGER>`: Maximum time in minutes to spend classifying a sequence (default: 60)
+
+**Reference databases** (from `config["parameters"]["reference_dbs"]`):
+- User-defined databases for taxonomic assignment
+- Multiple databases can be specified per project
 
 **Output:**
 - `results-classified/{project}/{project}-merged.fasta.gz`
@@ -211,32 +318,34 @@ This gives appropriate weight to replicates with higher sequencing depth (MergeA
 
 ### Read Count Filtering
 
-**Three filtering thresholds work together:**
+**Parameters** (from `config["parameters"]["seq_filters"]`):
 
-1. **`reads_within`** (default: 3):
-   - Minimum reads required per replicate
+1. **reads_within** `<INTEGER>` (default: 3):
+   - Minimum number of reads within a single replicate to count that replicate
    - Filters out low-abundance observations within each replicate
-   - Only replicates meeting this threshold are counted
+   - Only replicates meeting this threshold contribute to total_reads
 
-2. **`reads_across`** (default: 10):
-   - Minimum total reads after within-replicate filtering
+2. **reads_across** `<INTEGER>` (default: 10):
+   - Minimum total number of reads across all valid replicates
    - Ensures sequences have substantial representation overall
+   - Applied after within-replicate filtering
 
-3. **`reads_replicates`** (default: 3):
-   - Minimum number of replicates that must pass `reads_within` threshold
+3. **reads_replicates** `<INTEGER>` (default: 3):
+   - Minimum number of replicates that must meet reads_within threshold
    - Ensures reproducibility across technical replicates
+   - Adjust if using different number of replicates (e.g., 4)
 
 **Example with reads_within=3, reads_replicates=3, reads_across=10:**
 ```
 Sequence A in Sample 1:
   Rep1: 5 reads, Rep2: 2 reads, Rep3: 6 reads, Rep4: 4 reads
-  → Only Rep1, Rep3, Rep4 counted (≥3 reads)
+  → Only Rep1, Rep3, Rep4 counted (≥3 reads each)
   → total_reads = 15, n_replicates_present = 3
   → KEEP (3 reps ≥ threshold, total ≥ 10)
 
 Sequence B in Sample 2:
   Rep1: 4 reads, Rep2: 2 reads, Rep3: 3 reads, Rep4: 1 read
-  → Only Rep1, Rep3 counted (≥3 reads)
+  → Only Rep1, Rep3 counted (≥3 reads each)
   → total_reads = 7, n_replicates_present = 2
   → REMOVE (only 2 reps ≥ threshold, need 3)
 ```
@@ -286,9 +395,13 @@ A sequence is flagged for removal if **ANY** condition is met:
 | `obitag_rank` | Taxonomic rank |
 | `taxon` | Taxonomic name |
 
-**Processing log:** `results-tables/{project}/{project}-{db}-combined_classification_info.txt`
+**Processing info:** `results-tables/{project}/{project}-{db}-combined_classification_info.txt`
 
 Contains statistics on filtering at each stage.
+
+**Error log:** `logs/{project}/{project}-{db}-combined_classification_table.log`
+
+Contains error messages (if any).
 
 ---
 
@@ -307,24 +420,32 @@ data %>% filter(remove == FALSE)
 Removes sequences flagged during MOTU processing.
 
 #### Step 2: Taxonomic Identity Filtering
+
+**Parameter** (from `config["parameters"]["tax_filters"]`):
+- **min_identity** `<FLOAT64>` (default: 0.97): Minimum taxonomic match identity to keep a sequence assignment (0-1 scale)
 ```r
 data %>% filter(obitag_bestid >= min_identity)
 ```
 
-Filters by taxonomic match quality (default: 1 or 100%):
+**Identity threshold interpretation:**
+- **0.99-1.00**: Very high confidence, species-level assignment
+- **0.97-0.99**: High confidence, genus/species-level (recommended)
+- **0.95-0.97**: Moderate confidence, may include uncertain matches
+- **<0.95**: Low confidence (not recommended)
 
 #### Step 3: Taxonomic Rank Filtering
 
-Keeps only ranks ≥ family level:
+Keeps only ranks at or above family level:
 ```r
 data %>% filter(obitag_rank %in% c("species", "subgenus", "section", 
                                     "genus", "family", "subfamily", "tribe"))
 ```
 
-This only keeps the following ranks: species, subgenus, section, genus, family,
-subfamily, tribe. Anything above is considered too broad.
+**Retained ranks:** species, subgenus, section, genus, subfamily, tribe, family
 
-**Rationale:** Family-level is minimum for meaningful ecological interpretation.
+**Excluded ranks:** order, class, phylum, kingdom, superkingdom, no rank, unknown
+
+**Rationale:** Family-level is the minimum resolution for meaningful ecological interpretation.
 
 #### Step 4: Taxonomic Clustering
 
@@ -337,8 +458,8 @@ data %>%
 
 **Why cluster?**
 - Multiple sequences can represent the same taxon (intraspecific variation)
-- Different genetic regions may yield different sequences
-- Clustering gives true taxon-level abundance
+- Different genetic regions may yield different sequences for same taxon
+- Clustering provides true taxon-level abundance
 
 **Example:**
 ```
@@ -362,9 +483,15 @@ ZSG-3   025_D1  Picea abies      286
 - `taxid`: NCBI taxonomy ID
 - `taxon`: Taxonomic name
 - `obitag_rank`: Taxonomic rank
-- `total_reads`: Aggregated abundance
+- `total_reads`: Aggregated abundance across all sequences
 
-**Processing log:** `logs/{project}/{project}-{db}-clustered_taxa_table.log`
+**Processing info:** `results-tables/{project}/{project}-{db}-clustered_taxa_info.txt`
+
+Contains statistics on filtering and clustering.
+
+**Error log:** `logs/{project}/{project}-{db}-clustered_taxa_table.log`
+
+Contains error messages (if any).
 
 ---
 
@@ -375,37 +502,44 @@ ZSG-3   025_D1  Picea abies      286
 **Rules:** `plot_taxa_heatmap`, `plot_taxa_heatmap_log`
 
 Generates heatmaps showing taxonomic composition across samples:
-- Linear scale: Shows absolute abundance patterns
-- Log scale: Better for visualizing rare taxa
+- **Linear scale**: Shows absolute abundance patterns
+- **Log scale**: Better for visualizing rare taxa
 
-**Parameters:**
-- `top_n_taxa`: Number of most abundant taxa to display (default: 200)
-- `width`, `height`: Plot dimensions in inches
+**Parameters** (from `config["parameters"]["plotting"]`):
+- **top_n_taxa** `<INTEGER>`: Number of most abundant taxa to display (default: 200)
+- **width** `<INTEGER>`: Plot width in inches (default: 10)
+- **height** `<INTEGER>`: Plot height in inches (default: 15)
 
 **Output:**
-- `final_plots/{project}/{project}-{db}-taxa_heatmap.pdf`
-- `final_plots/{project}/{project}-{db}-taxa_heatmap_log.pdf`
+- `results-plots/{project}/{project}-{db}-taxa_heatmap.pdf`
+- `results-plots/{project}/{project}-{db}-taxa_heatmap_log.pdf`
 
 ---
 
 ## 7. Complete Filtering Pipeline Summary
 ```
-Raw reads
-    ↓ [Pairing & merging]
-Paired reads
-    ↓ [Demultiplexing]
+Raw paired-end reads
+    ↓ [obipairing: Pairing & merging]
+Paired reads (aligned F+R)
+    ↓ [obimultiplex: Demultiplexing by barcode]
 Demultiplexed reads (per sample/replicate)
-    ↓ [Dereplication & denoising]
-Unique sequences: ~3,000
-    ↓ [Taxonomic classification]
+    ↓ [obiuniq: Dereplication]
+Unique sequences with counts
+    ↓ [obigrep: Count & length filtering]
+Filtered unique sequences
+    ↓ [obiclean: Denoising & error removal]
+Clean unique sequences: ~3,000
+    ↓ [obitag: Taxonomic classification]
 Classified sequences
     ↓ [process_motu.R: Replication + Blank filtering]
-├─ Remove not_replicated: -40%
-├─ Remove in_blanks: -20%
+├─ reads_within filter: Remove low-abundance within replicates
+├─ reads_replicates filter: Require minimum replication
+├─ reads_across filter: Require minimum total reads
+├─ Blank contamination filter: Remove if in LB/PB/IB/SB
 └─ Valid sequences: ~2,000 sequence-location combinations
     ↓ [cluster_taxa.R: Identity + Rank filtering]
-├─ Filter identity (<97%): -15%
-├─ Filter rank (<family): -10%
+├─ min_identity filter: Remove low-confidence assignments (<97%)
+├─ Rank filter: Remove assignments above family level
 └─ Valid taxa: ~1,500
     ↓ [Clustering by taxon]
 Final taxa-location combinations: ~500
@@ -413,48 +547,15 @@ Final taxa-location combinations: ~500
 
 ---
 
-## 8. Quality Control Checkpoints
-
-### Sequence-Level QC (process_motu.R)
-- ✓ Technical replication (minimum N replicates)
-- ✓ Read abundance (within and across replicates)
-- ✓ Blank contamination (LB, PB, IB, SB)
-- ✓ Proportional weighting (accounts for depth variation)
-
-### Taxonomic-Level QC (cluster_taxa.R)
-- ✓ Match identity (≥97% similarity to reference)
-- ✓ Taxonomic resolution (≥family level)
-- ✓ Intraspecific clustering (multiple sequences → single taxon)
-
----
-
-## 9. Parameter Recommendations
-
-### Read Filtering
-- **reads_within: 3** - Conservative, removes sporadic observations
-- **reads_across: 10** - Ensures meaningful abundance
-- **reads_replicates: 3** - Standard for technical replicates (adjust if using 4+ replicates)
-
-### Taxonomic Filtering
-- **min_identity: 0.97-0.99** - High confidence (recommended)
-- **min_identity: 0.95-0.97** - Moderate confidence (more permissive)
-- **min_identity: <0.95** - Not recommended (too many uncertain matches)
-
-### Blank Controls
-Always include:
-- Library blanks (LB) - one per library
-- PCR blanks (PB) - one per PCR batch
-- Isolation blanks (IB) - one per extraction batch
-- Sampling blanks (SB) - field controls (if applicable)
-
----
-
-## 10. Output Directory Structure
+## 8. Output Directory Structure
 ```
 results/
 ├── {project}/
 │   ├── {library}.paired.fastq.gz
+│   ├── {library}.demux_{length}bp.fastq.gz
 │   ├── {library}.demux.fastq.gz
+│   ├── {library}.demux.uniq.fasta.gz
+│   ├── {library}.demux.uniq.filtered.fasta.gz
 │   ├── {library}.demux.uniq.filtered.denoised.fasta.gz
 │   └── barcodes-{library}_{length}bp_only.txt
 
@@ -468,9 +569,11 @@ results-classified/
 results-tables/
 ├── {project}/
 │   ├── {project}-{db}-combined_classification_table.csv
-│   └── {project}-{db}-clustered_taxa_table.csv
+│   ├── {project}-{db}-combined_classification_info.txt
+│   ├── {project}-{db}-clustered_taxa_table.csv
+│   └── {project}-{db}-clustered_taxa_info.txt
 
-final_plots/
+results-plots/
 ├── {project}/
 │   ├── {project}-{db}-taxa_heatmap.pdf
 │   └── {project}-{db}-taxa_heatmap_log.pdf
@@ -486,53 +589,58 @@ logs/
 └── {project}/
     ├── {library}.paired.log
     ├── {library}.demux_{length}bp.log
-    └── {project}-{db}-combined_classification_table.log
+    ├── {project}-{db}-combined_classification_table.log
+    └── {project}-{db}-clustered_taxa_table.log
 ```
 
 ---
 
-## 11. Troubleshooting
-
-### Issue: Samples not matching between MOTU and JSON
-**Symptom:** Warning in log: "X samples in MOTU table not found in demux stats"
-**Solution:** Check sample naming consistency between barcode file and demux stats
-
-### Issue: All sequences flagged as remove=TRUE
-**Symptom:** No sequences in final output
-**Solution:** 
-- Check replication parameters are appropriate for your data
-- Verify blank samples are correctly labeled
-- Review `reads_within`, `reads_across`, `reads_replicates` thresholds
-
-### Issue: Low taxonomic assignment rate
-**Symptom:** Many sequences with low `obitag_bestid` or "no rank"
-**Solution:**
-- Check reference database quality and coverage
-- Consider lowering `min_identity` threshold (not below 0.95)
-- Verify primers target appropriate region for your database
-
-### Issue: High blank contamination
-**Symptom:** Many sequences flagged with in_LB/PB/IB/SB=TRUE
-**Solution:**
-- Review laboratory procedures
-- Check blank controls for unusual contamination
-- Consider stricter laboratory protocols for future samples
-
----
-
-## 12. Citation
+## 9. Citation
 
 If using this pipeline, please cite:
-- OBITools: Boyer et al. (2016) Mol Ecol Resour 16:176-182
-- MergeAndFilter approach: Lammers et al. (2021) Mol Ecol Resour
-- Your reference databases (e.g., PhyloAlps, EMBL, etc.)
+
+- OBITools: Boyer F, et al. (2016) obitools: a unix-inspired software package for DNA metabarcoding. Molecular Ecology Resources 16:176-182
+
+- Filtering approach: Lammers Y (2021) https://github.com/Y-Lammers/MergeAndFilter
+
+- Your reference databases
+
 
 ---
 
-## 13. Support
+## 10. Advanced Usage
 
-For issues or questions:
-1. Check the logs in `logs/{project}/` for error messages
-2. Review the processing statistics in log files
-3. Verify configuration file syntax and file paths
-4. Consult the Snakemake and OBITools documentation
+### Running Specific Steps
+
+Run only classification for one database:
+```bash
+snakemake results-classified/project/project-PhyloAlps.motu_table.csv --cores 4
+```
+
+Run only final tables:
+```bash
+snakemake results-tables/project/project-PhyloAlps-clustered_taxa_table.csv --cores 4
+```
+
+### Reprocessing with Different Parameters
+
+Edit config file and rerun with force:
+```bash
+snakemake --forcerun process_motu --cores 4
+```
+
+### Adding New Samples
+
+1. Add new fastq and barcode files to config
+2. Run pipeline (Snakemake will detect new inputs)
+
+### Using Multiple Databases
+
+Add new databases to config:
+```yaml
+reference_dbs:
+  Database1: "path1.fasta"
+  Database2: "path2.fasta"
+```
+
+Pipeline will automatically classify against all databases.
