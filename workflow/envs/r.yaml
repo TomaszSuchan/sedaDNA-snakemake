@@ -11,3 +11,4 @@ dependencies:
   - r-purrr=1.1.0
   - r-ggplot2=4.0.0
   - r-pheatmap=1.0.13
+  - r-jsonlite=2.0.0
