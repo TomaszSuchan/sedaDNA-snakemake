@@ -41,24 +41,29 @@ cat("Output file: ", output_file, "\n")
 cat("------------------------------------------------------------\n")
 
 # -------------------------------
-# LOAD DEMUX STATS
+# LOAD DEMUX STATS for ALL libraries
 # -------------------------------
 demux_stats <- fromJSON(demux_stats_json)
-sample_totals <- demux_stats$samples$sample_stats
 
-# Convert to dataframe with sample name and total reads
-sample_read_counts <- tibble(
-  sample_id = names(sample_totals),
-  total_reads_in_sample = map_dbl(sample_totals, ~.$reads)
-)
+# Extract sample stats from ALL libraries and combine
+sample_read_counts <- map_dfr(names(demux_stats), function(lib_name) {
+  sample_totals <- demux_stats[[lib_name]]$samples$sample_stats
+  tibble(
+    sample_id = names(sample_totals),
+    total_reads_in_sample = map_dbl(sample_totals, ~.$reads),
+    library_source = lib_name
+  )
+})
 
-cat("Loaded demux stats for", nrow(sample_read_counts), "samples.\n")
+cat("Loaded demux stats for", length(names(demux_stats)), "libraries with", nrow(sample_read_counts), "total samples.\n")
 
 # -------------------------------
 # LOAD MOTU TABLE
 # -------------------------------
 motu <- read_csv(motu_file, show_col_types = FALSE) %>%
   rename(id = 1)
+
+cat("Loaded MOTU table with", nrow(motu), "samples.\n")
 
 # -------------------------------
 # STEP 0: Parse sample names
@@ -88,6 +93,8 @@ motu_parsed <- motu %>%
     isolation_batch = if_else(blank_type %in% c("PB","LB"), NA_character_, isolation_batch)
   )
 
+cat("Parsed", nrow(motu_parsed), "sample IDs into components.\n")
+
 # -------------------------------
 # Identify sequence columns
 # -------------------------------
@@ -95,6 +102,8 @@ seq_cols <- motu_parsed %>%
   select(-id, -core, -depth, -sampling_batch, -isolation_batch, -library, -replicate, -blank_type) %>%
   select(where(is.numeric)) %>%
   colnames()
+
+cat("Found", length(seq_cols), "sequence columns.\n")
 
 # -------------------------------
 # Long format
@@ -104,7 +113,10 @@ motu_long <- motu_parsed %>%
     cols = all_of(seq_cols),
     names_to = "sequence_id",
     values_to = "reads"
-  )
+  ) %>%
+  filter(reads > 0)  # Remove zero counts to reduce memory
+
+cat("Converted to long format:", nrow(motu_long), "non-zero observations.\n")
 
 # Join with sample totals to get proportions
 motu_long <- motu_long %>%
@@ -113,6 +125,13 @@ motu_long <- motu_long %>%
     proportion = reads / total_reads_in_sample,
     proportion = if_else(is.na(proportion) | is.infinite(proportion), 0, proportion)
   )
+
+# Check for unmatched samples
+unmatched <- motu_long %>% filter(is.na(total_reads_in_sample)) %>% distinct(id)
+if (nrow(unmatched) > 0) {
+  cat("WARNING:", nrow(unmatched), "samples in MOTU table not found in demux stats:\n")
+  print(head(unmatched, 10))
+}
 
 # -------------------------------
 # Summarize reads by sample grouping with weighted proportions
@@ -125,7 +144,7 @@ motu_summary <- motu_long %>%
     replicate_total_reads = list(total_reads_in_sample),
     total_reads = sum(reads[reads >= reads_within], na.rm = TRUE),
     n_replicates_present = sum(reads >= reads_within),
-    # CORRECTED: Weighted average proportion (MergeAndFilter style)
+    # Weighted average proportion (MergeAndFilter style)
     weighted_avg_proportion = sum(proportion * total_reads_in_sample, na.rm = TRUE) / 
                               sum(total_reads_in_sample, na.rm = TRUE),
     # Average proportion across replicates (unweighted)
@@ -134,8 +153,10 @@ motu_summary <- motu_long %>%
   ) %>%
   mutate(
     replicate_summary = map_chr(replicate_reads, ~ paste(.x, collapse = ";")),
-    proportion_summary = map_chr(replicate_proportions, ~ paste(round(.x, 4), collapse = ";")),
-    not_replicated = !(n_replicates_present >= reads_replicates & total_reads >= reads_across)
+    proportion_summary = map_chr(replicate_proportions, ~ paste(round(.x, 6), collapse = ";")),
+    not_replicated = !(n_replicates_present >= reads_replicates & total_reads >= reads_across),
+    # Handle NaN in weighted_avg_proportion
+    weighted_avg_proportion = if_else(is.nan(weighted_avg_proportion), 0, weighted_avg_proportion)
   ) %>%
   filter(total_reads > 0)
 
@@ -159,12 +180,22 @@ sb_flags <- motu_summary %>%
   group_by(sampling_batch, sequence_id) %>%
   summarise(in_SB = any(total_reads > 0), .groups = "drop")
 
+pb_flags <- motu_summary %>%
+  filter(blank_type == "PB") %>%
+  group_by(isolation_batch, sequence_id) %>%
+  summarise(in_PB = any(total_reads > 0), .groups = "drop")
+
+cat("Computed blank flags: LB=", nrow(lb_flags), " IB=", nrow(ib_flags), " SB=", nrow(sb_flags), " PB=", nrow(pb_flags), "\n", sep="")
+
 motu_flagged <- motu_summary %>%
-  left_join(lb_flags, by = c("library","sequence_id")) %>%
-  left_join(ib_flags, by = c("isolation_batch","sequence_id")) %>%
   left_join(sb_flags, by = c("sampling_batch","sequence_id")) %>%
+  left_join(ib_flags, by = c("isolation_batch","sequence_id")) %>%
+  left_join(lb_flags, by = c("library","sequence_id")) %>%
+  left_join(pb_flags, by = c("isolation_batch","sequence_id")) %>%
   mutate(across(starts_with("in_"), ~replace_na(., FALSE))) %>%
-  mutate(remove = not_replicated | in_LB | in_IB | in_SB)
+  mutate(remove = not_replicated | in_LB | in_IB | in_SB | in_PB)
+
+cat("Flagged sequences. Remove=TRUE:", sum(motu_flagged$remove), " Remove=FALSE:", sum(!motu_flagged$remove), "\n")
 
 # -------------------------------
 # Load and process classification table
