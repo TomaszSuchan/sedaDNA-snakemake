@@ -354,12 +354,12 @@ Sequence B in Sample 2:
 
 Sequences are flagged if present in any blank control:
 
-| Flag | Description | Grouping |
-|------|-------------|----------|
-| `in_LB` | Library blank contamination | library + sequence |
-| `in_PB` | PCR blank contamination | isolation_batch + sequence |
-| `in_IB` | Isolation blank contamination | isolation_batch + sequence |
-| `in_SB` | Sampling blank contamination | sampling_batch + sequence |
+| Flag | Description | 
+|------|-------------|
+| `in_LB` | Library blank contamination |
+| `in_PB` | PCR blank contamination |
+| `in_IB` | Isolation blank contamination |
+| `in_SB` | Sampling blank contamination |
 
 **Removal criteria:**
 ```
@@ -395,11 +395,11 @@ A sequence is flagged for removal if **ANY** condition is met:
 | `obitag_rank` | Taxonomic rank |
 | `taxon` | Taxonomic name |
 
-**Processing info:** `results-tables/{project}/{project}-{db}-combined_classification_info.txt`
+**Processing info:** `results-tables/{project}/{project}-{db}-classification_info.txt`
 
 Contains statistics on filtering at each stage.
 
-**Error log:** `logs/{project}/{project}-{db}-combined_classification_table.log`
+**Error log:** `logs/{project}/{project}-{db}-classification_table.log`
 
 Contains error messages (if any).
 
@@ -422,16 +422,10 @@ Removes sequences flagged during MOTU processing.
 #### Step 2: Taxonomic Identity Filtering
 
 **Parameter** (from `config["parameters"]["tax_filters"]`):
-- **min_identity** `<FLOAT64>` (default: 0.97): Minimum taxonomic match identity to keep a sequence assignment (0-1 scale)
+- **min_identity** `<FLOAT64>` (default: 1.0): Minimum taxonomic match identity to keep a sequence assignment (0-1 scale)
 ```r
 data %>% filter(obitag_bestid >= min_identity)
 ```
-
-**Identity threshold interpretation:**
-- **0.99-1.00**: Very high confidence, species-level assignment
-- **0.97-0.99**: High confidence, genus/species-level (recommended)
-- **0.95-0.97**: Moderate confidence, may include uncertain matches
-- **<0.95**: Low confidence (not recommended)
 
 #### Step 3: Taxonomic Rank Filtering
 
@@ -441,11 +435,8 @@ data %>% filter(obitag_rank %in% c("species", "subgenus", "section",
                                     "genus", "family", "subfamily", "tribe"))
 ```
 
-**Retained ranks:** species, subgenus, section, genus, subfamily, tribe, family
-
-**Excluded ranks:** order, class, phylum, kingdom, superkingdom, no rank, unknown
-
-**Rationale:** Family-level is the minimum resolution for meaningful ecological interpretation.
+Retained ranks are: species, subgenus, section, genus, subfamily, tribe, family.
+Everything higher than family-level is discarded.
 
 #### Step 4: Taxonomic Clustering
 
@@ -456,10 +447,9 @@ data %>%
   summarise(total_reads = sum(total_reads))
 ```
 
-**Why cluster?**
-- Multiple sequences can represent the same taxon (intraspecific variation)
-- Different genetic regions may yield different sequences for same taxon
-- Clustering provides true taxon-level abundance
+Multiple sequences representing the same taxon (intraspecific variation) are clustered together. This provides  taxon-level abundance.
+
+**Important:** Clustering does not take taxonomy into consideration. So if you have sequences clustered on the genus level and the species within, you would have to add these togehter to get the total number of reads within this genus. In other words, the sum of reads assigned to higher taxonomic levels do not include reads assigned to lower taxonomic levels within.
 
 **Example:**
 ```
