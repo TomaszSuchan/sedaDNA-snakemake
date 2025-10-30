@@ -223,9 +223,12 @@ motu_flagged_classified <- motu_flagged %>%
 cat("Final table has", nrow(motu_flagged_classified), "rows.\n")
 
 # -------------------------------
-# Save final table
+# Save final table (drop replicate columns)
 # -------------------------------
-write_csv(motu_flagged_classified, output_file)
+motu_final <- motu_flagged_classified %>%
+  select(-any_of(c("replicate_reads", "replicate_proportions", "replicate_total_reads")))
+
+write_csv(motu_final, output_file)
 
 cat("Saved combined classification table to:", output_file, "\n")
 cat("Done.\n")
