@@ -1,7 +1,8 @@
 rule process_motu:
     input:
         motu_table = "results-classified/{project}/{project}-{db}.motu_table.csv",
-        classification_table = "results-classified/{project}/{project}-{db}.classification_table.csv"
+        classification_table = "results-classified/{project}/{project}-{db}.classification_table.csv",
+        demultiplex_stats = "stats/{project}/{project}.demux_stats_combined.json"
     output:
         "results-tables/{project}/{project}-{db}-combined_classification_table.csv"
     log:
@@ -19,6 +20,7 @@ rule process_motu:
         Rscript workflow/scripts/process_motu.R \
             {input.motu_table} \
             {input.classification_table} \
+            {input.demultiplex_stats} \
             {wildcards.db} \
             {params.reads_within} \
             {params.reads_across} \
