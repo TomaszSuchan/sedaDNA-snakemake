@@ -55,7 +55,7 @@ rule all:
                 db=PROJECT_DBS[project])
          for project in PROJECTS],
         # Final processed MOTU table - all projects, all databases
-        [expand("results-tables/{project}/{project}-{db}-combined_classification_table.csv",
+        [expand("results-tables/{project}/{project}-{db}-classification_table.csv",
                 project=project,
                 db=PROJECT_DBS[project])
          for project in PROJECTS],
