@@ -37,6 +37,25 @@ rule demux_stats:
         obisummary --max-cpu {threads} {input} > {output}
         """
 
+rule demultiplex_stats:
+    input:
+        expand("stats/{{project}}/{library}.demux_stats.json",
+               library=lambda wildcards: config["projects"][wildcards.project]["libraries"])
+    output:
+        "stats/{project}/{project}.demux_stats_combined.json"
+    run:
+        import json
+
+        combined = {}
+        for infile in input:
+            with open(infile) as f:
+                data = json.load(f)
+            library = infile.split("/")[-1].replace(".demux_stats.json", "")
+            combined[library] = data
+
+        with open(output[0], "w") as out:
+            json.dump(combined, out, indent=4)
+
 rule merge_json_read_counts:
     input:
         raw="stats/{project}/{library}.raw_stats.json",
