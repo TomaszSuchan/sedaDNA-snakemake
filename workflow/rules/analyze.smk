@@ -4,7 +4,8 @@ rule process_motu:
         classification_table = "results-classified/{project}/{project}-{db}.classification_table.csv",
         demultiplex_stats = "stats/{project}/{project}.demux_stats_combined.json"
     output:
-        "results-tables/{project}/{project}-{db}-combined_classification_table.csv"
+        table = "results-tables/{project}/{project}-{db}-combined_classification_table.csv",
+        info = "results-tables/{project}/{project}-{db}-combined_classification_info.txt"
     log:
         "logs/{project}/{project}-{db}-combined_classification_table.log"
     params:
@@ -25,14 +26,15 @@ rule process_motu:
             {params.reads_within} \
             {params.reads_across} \
             {params.reads_replicates} \
-            {output} 2> {log}
+            {output.table} > {output.info} 2> {log}
         """
 
 rule cluster_taxa:
     input:
         "results-tables/{project}/{project}-{db}-combined_classification_table.csv"
     output:
-        "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv"
+        table = "results-tables/{project}/{project}-{db}-clustered_taxa_table.csv",
+        info = "results-tables/{project}/{project}-{db}-clustered_taxa_info.txt"
     log:
         "logs/{project}/{project}-{db}-clustered_taxa_table.log"
     params:
@@ -46,7 +48,8 @@ rule cluster_taxa:
         Rscript workflow/scripts/cluster_taxa.R \
             {input} \
             {params.min_identity} \
-            {output} 2> {log}
+            {wildcards.db} \
+            {output.table} > {output.info} 2> {log}
         """
 
 rule plot_taxa_heatmap_log:
