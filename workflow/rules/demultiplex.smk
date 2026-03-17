@@ -84,7 +84,9 @@ rule validate_samples:
         replicate_table="results-sequences/{project}/{project}.sample_replicates.tsv",
         pb_ib_library_table="results-sequences/{project}/{project}.pb_ib_per_library.tsv",
         sb_sampling_table="results-sequences/{project}/{project}.sb_per_sampling.tsv",
-        ib_isolation_table="results-sequences/{project}/{project}.ib_per_isolation.tsv"
+        ib_isolation_table="results-sequences/{project}/{project}.ib_per_isolation.tsv",
+        duplicate_identity_table="results-sequences/{project}/{project}.duplicate_sample_identity.tsv",
+        sample_name_errors_table="results-sequences/{project}/{project}.sample_name_errors.tsv"
     run:
         import re
 
@@ -106,26 +108,71 @@ rule validate_samples:
         def sample_no_replicate(sample_name):
             return re.sub(r"_\d+$", "", sample_name)
 
-        def extract_library_from_sample(sample_name):
-            parts = sample_name.split("_")
-            if len(parts) >= 2:
-                return parts[-2]
-            return None
+        def parse_sample_name(sample_name, library_config):
+            parts = str(sample_name).split("_")
+            blank_type = detect_blank_type(sample_name)
+            errors = []
+            core = None
+            depth = None
+            sampling_batch = None
+            isolation_batch = None
+            library = None
+            replicate = None
+            sampling_id = None
 
-        def extract_isolation_batch(sample_name):
-            parts = sample_name.split("_")
-            if sample_name.startswith("IB_") and len(parts) >= 4:
-                return parts[1]
-            return None
+            if blank_type in ("LB", "PB"):
+                if len(parts) != 3:
+                    errors.append("expected_format_LB_or_PB")
+                else:
+                    _, library, rep = parts
+                    if rep.isdigit():
+                        replicate = int(rep)
+                    else:
+                        errors.append("non_numeric_replicate")
+            elif blank_type == "IB":
+                if len(parts) != 4:
+                    errors.append("expected_format_IB")
+                else:
+                    _, isolation_batch, library, rep = parts
+                    if rep.isdigit():
+                        replicate = int(rep)
+                    else:
+                        errors.append("non_numeric_replicate")
+            elif blank_type == "SB":
+                if len(parts) != 6 or parts[1] != "SB":
+                    errors.append("expected_format_SB")
+                else:
+                    core, _, depth, isolation_batch, library, rep = parts
+                    sampling_batch = "SB"
+                    sampling_id = f"{core}_SB_{depth}_{isolation_batch}"
+                    if rep.isdigit():
+                        replicate = int(rep)
+                    else:
+                        errors.append("non_numeric_replicate")
+            else:
+                if len(parts) != 6:
+                    errors.append("expected_format_SAMPLE")
+                else:
+                    core, depth, sampling_batch, isolation_batch, library, rep = parts
+                    if rep.isdigit():
+                        replicate = int(rep)
+                    else:
+                        errors.append("non_numeric_replicate")
 
-        def extract_sampling_id(sample_name):
-            if "_SB_" not in sample_name:
-                return None
-            parts = sample_name.split("_")
-            if len(parts) >= 3:
-                # Keep core + SB + horizon + batch (drop library + replicate)
-                return "_".join(parts[:-2])
-            return None
+            if library is not None and str(library) != str(library_config):
+                errors.append("library_mismatch_with_config")
+
+            return pd.Series({
+                "blank_type": blank_type,
+                "core": core,
+                "depth": depth,
+                "sampling_batch": sampling_batch,
+                "isolation_batch": isolation_batch,
+                "library_from_sample": library,
+                "replicate": replicate,
+                "sampling_id": sampling_id,
+                "sample_name_error": ";".join(errors)
+            })
 
         rows = []
         for lib in PROJECT_LIBRARIES[wildcards.project]:
@@ -135,15 +182,17 @@ rule validate_samples:
             rows.append(df)
 
         combined = pd.concat(rows, ignore_index=True)
-        combined["blank_type"] = combined["sample"].map(detect_blank_type)
-        combined["replicate"] = combined["sample"].map(extract_replicate)
+        parsed = combined.apply(
+            lambda row: parse_sample_name(row["sample"], row["library_config"]),
+            axis=1
+        )
+        combined = pd.concat([combined, parsed], axis=1)
+        combined["replicate"] = combined["replicate"].fillna(combined["sample"].map(extract_replicate))
         combined["sample_no_replicate"] = combined["sample"].map(sample_no_replicate)
-        combined["library_from_sample"] = combined["sample"].map(extract_library_from_sample)
-        combined["isolation_batch"] = combined["sample"].map(extract_isolation_batch)
-        combined["sampling_id"] = combined["sample"].map(extract_sampling_id)
+        combined_valid = combined[combined["sample_name_error"] == ""].copy()
 
         replicate_table = (
-            combined
+            combined_valid
             .groupby(["blank_type", "sample_no_replicate"], dropna=False)
             .agg(
                 n_replicates=("replicate", "nunique"),
@@ -157,7 +206,7 @@ rule validate_samples:
         replicate_table.to_csv(output.replicate_table, sep="\t", index=False)
 
         pb_ib_per_library = (
-            combined[combined["blank_type"].isin(["PB", "IB"])]
+            combined_valid[combined_valid["blank_type"].isin(["PB", "IB"])]
             .groupby(["library_from_sample", "blank_type"], dropna=False)
             .size()
             .reset_index(name="n")
@@ -175,7 +224,7 @@ rule validate_samples:
         pb_ib_per_library.to_csv(output.pb_ib_library_table, sep="\t", index=False)
 
         sb_per_sampling = (
-            combined[combined["blank_type"] == "SB"]
+            combined_valid[combined_valid["blank_type"] == "SB"]
             .groupby(["library_from_sample", "sampling_id"], dropna=False)
             .size()
             .reset_index(name="n_SB")
@@ -185,7 +234,7 @@ rule validate_samples:
         sb_per_sampling.to_csv(output.sb_sampling_table, sep="\t", index=False)
 
         ib_per_isolation = (
-            combined[combined["blank_type"] == "IB"]
+            combined_valid[combined_valid["blank_type"] == "IB"]
             .groupby(["library_from_sample", "isolation_batch"], dropna=False)
             .size()
             .reset_index(name="n_IB")
@@ -193,6 +242,38 @@ rule validate_samples:
             .sort_values(["library", "isolation_batch"])
         )
         ib_per_isolation.to_csv(output.ib_isolation_table, sep="\t", index=False)
+
+        duplicate_identity = (
+            combined_valid
+            .groupby(
+                [
+                    "blank_type",
+                    "core",
+                    "depth",
+                    "sampling_batch",
+                    "isolation_batch",
+                    "library_from_sample",
+                    "replicate"
+                ],
+                dropna=False
+            )
+            .agg(
+                n_rows=("sample", "size"),
+                sample_names=("sample", lambda x: ";".join(sorted(set([str(v) for v in x])))),
+                sample_tags=("sample_tag", lambda x: ";".join(sorted(set([str(v) for v in x]))))
+            )
+            .reset_index()
+        )
+        duplicate_identity = duplicate_identity[duplicate_identity["n_rows"] > 1].sort_values(
+            ["library_from_sample", "blank_type", "isolation_batch", "core", "depth", "replicate"]
+        )
+        duplicate_identity.to_csv(output.duplicate_identity_table, sep="\t", index=False)
+
+        sample_name_errors = combined[combined["sample_name_error"] != ""][
+            ["library_config", "sample", "sample_tag", "sample_name_error"]
+        ].copy()
+        sample_name_errors = sample_name_errors.sort_values(["library_config", "sample"])
+        sample_name_errors.to_csv(output.sample_name_errors_table, sep="\t", index=False)
 
 # Split barcode files by length (dynamic)
 rule split_barcodes:

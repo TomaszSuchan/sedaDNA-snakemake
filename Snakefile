@@ -34,7 +34,9 @@ rule all:
                 "results-sequences/{project}/{project}.sample_replicates.tsv",
                 "results-sequences/{project}/{project}.pb_ib_per_library.tsv",
                 "results-sequences/{project}/{project}.sb_per_sampling.tsv",
-                "results-sequences/{project}/{project}.ib_per_isolation.tsv"
+                "results-sequences/{project}/{project}.ib_per_isolation.tsv",
+                "results-sequences/{project}/{project}.duplicate_sample_identity.tsv",
+                "results-sequences/{project}/{project}.sample_name_errors.tsv"
             ],
             project=project)
          for project in PROJECTS],
