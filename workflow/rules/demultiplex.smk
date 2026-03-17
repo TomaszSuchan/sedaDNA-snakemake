@@ -68,11 +68,138 @@ rule validate_barcodes:
             else:
                 f.write(f"Warning: {len(duplicates)} duplicate barcodes found\n")
 
+# Project-level sanity checks after all barcode files are validated
+rule validate_samples:
+    input:
+        barcode_files=lambda wildcards: [
+            config["projects"][wildcards.project]["libraries"][lib]["barcode_file"]
+            for lib in PROJECT_LIBRARIES[wildcards.project]
+        ],
+        validations=lambda wildcards: expand(
+            "results-sequences/{project}/{library}.barcode_validation.txt",
+            project=wildcards.project,
+            library=PROJECT_LIBRARIES[wildcards.project]
+        )
+    output:
+        replicate_table="results-sequences/{project}/{project}.sample_replicates.tsv",
+        pb_ib_library_table="results-sequences/{project}/{project}.pb_ib_per_library.tsv",
+        sb_sampling_table="results-sequences/{project}/{project}.sb_per_sampling.tsv",
+        ib_isolation_table="results-sequences/{project}/{project}.ib_per_isolation.tsv"
+    run:
+        import re
+
+        def detect_blank_type(sample_name):
+            if sample_name.startswith("LB_"):
+                return "LB"
+            if sample_name.startswith("PB_"):
+                return "PB"
+            if sample_name.startswith("IB_"):
+                return "IB"
+            if "_SB_" in sample_name:
+                return "SB"
+            return "SAMPLE"
+
+        def extract_replicate(sample_name):
+            match = re.search(r"_(\d+)$", sample_name)
+            return int(match.group(1)) if match else None
+
+        def sample_no_replicate(sample_name):
+            return re.sub(r"_\d+$", "", sample_name)
+
+        def extract_library_from_sample(sample_name):
+            parts = sample_name.split("_")
+            if len(parts) >= 2:
+                return parts[-2]
+            return None
+
+        def extract_isolation_batch(sample_name):
+            parts = sample_name.split("_")
+            if sample_name.startswith("IB_") and len(parts) >= 4:
+                return parts[1]
+            return None
+
+        def extract_sampling_id(sample_name):
+            if "_SB_" not in sample_name:
+                return None
+            parts = sample_name.split("_")
+            if len(parts) >= 3:
+                # Keep core + SB + horizon + batch (drop library + replicate)
+                return "_".join(parts[:-2])
+            return None
+
+        rows = []
+        for lib in PROJECT_LIBRARIES[wildcards.project]:
+            barcode_file = config["projects"][wildcards.project]["libraries"][lib]["barcode_file"]
+            df = pd.read_csv(barcode_file)
+            df["library_config"] = lib
+            rows.append(df)
+
+        combined = pd.concat(rows, ignore_index=True)
+        combined["blank_type"] = combined["sample"].map(detect_blank_type)
+        combined["replicate"] = combined["sample"].map(extract_replicate)
+        combined["sample_no_replicate"] = combined["sample"].map(sample_no_replicate)
+        combined["library_from_sample"] = combined["sample"].map(extract_library_from_sample)
+        combined["isolation_batch"] = combined["sample"].map(extract_isolation_batch)
+        combined["sampling_id"] = combined["sample"].map(extract_sampling_id)
+
+        replicate_table = (
+            combined
+            .groupby(["blank_type", "sample_no_replicate"], dropna=False)
+            .agg(
+                n_replicates=("replicate", "nunique"),
+                min_replicate=("replicate", "min"),
+                max_replicate=("replicate", "max")
+            )
+            .reset_index()
+            .sort_values(["blank_type", "sample_no_replicate"])
+            .rename(columns={"sample_no_replicate": "sample"})
+        )
+        replicate_table.to_csv(output.replicate_table, sep="\t", index=False)
+
+        pb_ib_per_library = (
+            combined[combined["blank_type"].isin(["PB", "IB"])]
+            .groupby(["library_from_sample", "blank_type"], dropna=False)
+            .size()
+            .reset_index(name="n")
+            .pivot(index="library_from_sample", columns="blank_type", values="n")
+            .fillna(0)
+            .astype(int)
+            .reset_index()
+            .rename(columns={"library_from_sample": "library"})
+        )
+        if "PB" not in pb_ib_per_library.columns:
+            pb_ib_per_library["PB"] = 0
+        if "IB" not in pb_ib_per_library.columns:
+            pb_ib_per_library["IB"] = 0
+        pb_ib_per_library = pb_ib_per_library[["library", "PB", "IB"]].sort_values("library")
+        pb_ib_per_library.to_csv(output.pb_ib_library_table, sep="\t", index=False)
+
+        sb_per_sampling = (
+            combined[combined["blank_type"] == "SB"]
+            .groupby(["library_from_sample", "sampling_id"], dropna=False)
+            .size()
+            .reset_index(name="n_SB")
+            .rename(columns={"library_from_sample": "library"})
+            .sort_values(["library", "sampling_id"])
+        )
+        sb_per_sampling.to_csv(output.sb_sampling_table, sep="\t", index=False)
+
+        ib_per_isolation = (
+            combined[combined["blank_type"] == "IB"]
+            .groupby(["library_from_sample", "isolation_batch"], dropna=False)
+            .size()
+            .reset_index(name="n_IB")
+            .rename(columns={"library_from_sample": "library"})
+            .sort_values(["library", "isolation_batch"])
+        )
+        ib_per_isolation.to_csv(output.ib_isolation_table, sep="\t", index=False)
+
 # Split barcode files by length (dynamic)
 rule split_barcodes:
     input:
         barcodes=lambda wildcards: config["projects"][wildcards.project]["libraries"][wildcards.library]["barcode_file"],
-        validation="results-sequences/{project}/{library}.barcode_validation.txt"
+        validation="results-sequences/{project}/{library}.barcode_validation.txt",
+        sample_validation="results-sequences/{project}/{project}.sample_replicates.tsv"
     output:
         "results-sequences/{project}/barcodes-{library}_{length}bp_only.txt"
     params:

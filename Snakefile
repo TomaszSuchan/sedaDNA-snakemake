@@ -29,6 +29,15 @@ rule all:
                 project=project,
                 library=PROJECT_LIBRARIES[project])
          for project in PROJECTS],
+        # Barcode sanity reports - all projects
+        [expand([
+                "results-sequences/{project}/{project}.sample_replicates.tsv",
+                "results-sequences/{project}/{project}.pb_ib_per_library.tsv",
+                "results-sequences/{project}/{project}.sb_per_sampling.tsv",
+                "results-sequences/{project}/{project}.ib_per_isolation.tsv"
+            ],
+            project=project)
+         for project in PROJECTS],
         # Demultiplexed files - all projects
         [expand("results-sequences/{project}/{library}.demux.fastq.gz",
                 project=project,
