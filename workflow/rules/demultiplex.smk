@@ -216,7 +216,11 @@ rule validate_samples:
 
         sample_replicates = (
             combined_valid[combined_valid["blank_type"] == "SAMPLE"]
-            .assign(sample_no_library_replicate=lambda df: df["sample"].str.replace(r"_[^_]+_\\d+$", "", regex=True))
+            .assign(
+                sample_no_library_replicate=lambda df: df["sample"].map(
+                    lambda s: "_".join(str(s).split("_")[:-2]) if len(str(s).split("_")) >= 2 else str(s)
+                )
+            )
             .groupby(["sample_no_library_replicate"], dropna=False)
             .agg(n_replicates=("sample", "size"))
             .reset_index()
