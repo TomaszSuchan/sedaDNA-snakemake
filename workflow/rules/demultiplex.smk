@@ -81,10 +81,11 @@ rule validate_samples:
             library=PROJECT_LIBRARIES[wildcards.project]
         )
     output:
-        replicate_table="results/{project}/validation/{project}.sample_replicates.tsv",
-        lb_pb_library_table="results/{project}/validation/{project}.LB_PB_per_library.tsv",
-        sb_sampling_table="results/{project}/validation/{project}.SB_per_sampling.tsv",
-        ib_isolation_table="results/{project}/validation/{project}.IB_per_isolation.tsv",
+        all_replicates_table="results/{project}/validation/{project}.all_replicates.tsv",
+        sample_replicates_table="results/{project}/validation/{project}.sample_replicates.tsv",
+        lb_pb_library_table="results/{project}/validation/{project}.LB_PB_replicttes.tsv",
+        sb_sampling_table="results/{project}/validation/{project}.SB_replicates.tsv",
+        ib_isolation_table="results/{project}/validation/{project}.IB_replicates.tsv",
         duplicate_identity_table="results/{project}/validation/{project}.duplicate_sample_identity.tsv",
         sample_name_errors_table="results/{project}/validation/{project}.sample_name_errors.tsv"
     run:
@@ -201,7 +202,7 @@ rule validate_samples:
             axis=1
         )
 
-        replicate_table = (
+        all_replicates_table = (
             combined_valid
             .groupby(["sample_no_replicate"], dropna=False)
             .agg(
@@ -211,7 +212,18 @@ rule validate_samples:
             .sort_values(["sample_no_replicate"])
             .rename(columns={"sample_no_replicate": "sample"})
         )
-        replicate_table.to_csv(output.replicate_table, sep="\t", index=False)
+        all_replicates_table.to_csv(output.all_replicates_table, sep="\t", index=False)
+
+        sample_replicates = (
+            combined_valid[combined_valid["blank_type"] == "SAMPLE"]
+            .assign(sample_no_library_replicate=lambda df: df["sample"].str.replace(r"_[^_]+_\\d+$", "", regex=True))
+            .groupby(["sample_no_library_replicate"], dropna=False)
+            .agg(n_replicates=("sample", "size"))
+            .reset_index()
+            .sort_values(["sample_no_library_replicate"])
+            .rename(columns={"sample_no_library_replicate": "sample"})
+        )
+        sample_replicates.to_csv(output.sample_replicates_table, sep="\t", index=False)
 
         libraries = (
             combined_valid[["library_from_sample"]]
@@ -338,7 +350,7 @@ rule split_barcodes:
     input:
         barcodes=lambda wildcards: config["projects"][wildcards.project]["libraries"][wildcards.library]["barcode_file"],
         validation="results/{project}/validation/{library}.barcode_validation.txt",
-        sample_validation="results/{project}/validation/{project}.sample_replicates.tsv"
+        sample_validation="results/{project}/validation/{project}.all_replicates.tsv"
     output:
         "results/{project}/sequences/barcodes-{library}_{length}bp_only.txt"
     params:

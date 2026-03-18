@@ -169,10 +169,11 @@ snakemake --executor slurm \
 **Output:**
 - `results/{project}/sequences/barcodes-{library}_{length}bp_only.txt`
 - `results/{project}/validation/{library}.barcode_validation.txt`
+- `results/{project}/validation/{project}.all_replicates.tsv`
 - `results/{project}/validation/{project}.sample_replicates.tsv`
-- `results/{project}/validation/{project}.lb_pb_per_library.tsv`
-- `results/{project}/validation/{project}.sb_per_sampling.tsv`
-- `results/{project}/validation/{project}.ib_per_isolation.tsv`
+- `results/{project}/validation/{project}.LB_PB_replicttes.tsv`
+- `results/{project}/validation/{project}.SB_replicates.tsv`
+- `results/{project}/validation/{project}.IB_replicates.tsv`
 - `results/{project}/validation/{project}.duplicate_sample_identity.tsv`
 - `results/{project}/validation/{project}.sample_name_errors.tsv`
 
@@ -536,10 +537,11 @@ results/
 └── {project}/
     ├── validation/
     │   ├── {library}.barcode_validation.txt
+    │   ├── {project}.all_replicates.tsv
     │   ├── {project}.sample_replicates.tsv
-    │   ├── {project}.lb_pb_per_library.tsv
-    │   ├── {project}.sb_per_sampling.tsv
-    │   ├── {project}.ib_per_isolation.tsv
+    │   ├── {project}.LB_PB_replicttes.tsv
+    │   ├── {project}.SB_replicates.tsv
+    │   ├── {project}.IB_replicates.tsv
     │   ├── {project}.duplicate_sample_identity.tsv
     │   └── {project}.sample_name_errors.tsv
     ├── sequences/

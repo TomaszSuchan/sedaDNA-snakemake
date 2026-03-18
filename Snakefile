@@ -31,10 +31,11 @@ rule all:
          for project in PROJECTS],
         # Barcode sanity reports - all projects
         [expand([
+                "results/{project}/validation/{project}.all_replicates.tsv",
                 "results/{project}/validation/{project}.sample_replicates.tsv",
-                "results/{project}/validation/{project}.LB_PB_per_library.tsv",
-                "results/{project}/validation/{project}.SB_per_sampling.tsv",
-                "results/{project}/validation/{project}.IB_per_isolation.tsv",
+                "results/{project}/validation/{project}.LB_PB_replicttes.tsv",
+                "results/{project}/validation/{project}.SB_replicates.tsv",
+                "results/{project}/validation/{project}.IB_replicates.tsv",
                 "results/{project}/validation/{project}.duplicate_sample_identity.tsv",
                 "results/{project}/validation/{project}.sample_name_errors.tsv"
             ],
