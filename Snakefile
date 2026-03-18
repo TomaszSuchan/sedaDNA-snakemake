@@ -21,6 +21,27 @@ include: "workflow/rules/stats.smk"
 include: "workflow/rules/classify.smk"
 include: "workflow/rules/analyze.smk"
 
+# Validation-only target
+rule validate:
+    input:
+        # Validation reports - all projects
+        [expand("results/{project}/validation/{library}.barcode_validation.txt",
+                project=project,
+                library=PROJECT_LIBRARIES[project])
+         for project in PROJECTS],
+        # Sample validation reports - all projects
+        [expand([
+                "results/{project}/validation/{project}.all_replicates.tsv",
+                "results/{project}/validation/{project}.sample_replicates.tsv",
+                "results/{project}/validation/{project}.LB_PB_replicates.tsv",
+                "results/{project}/validation/{project}.SB_replicates.tsv",
+                "results/{project}/validation/{project}.IB_replicates.tsv",
+                "results/{project}/validation/{project}.duplicate_sample_identity.tsv",
+                "results/{project}/validation/{project}.sample_name_errors.tsv"
+            ],
+            project=project)
+         for project in PROJECTS]
+
 # Final outputs
 rule all:
     input:

@@ -597,6 +597,11 @@ If using this pipeline, please cite:
 
 ### Running Specific Steps
 
+Run only validation checks:
+```bash
+snakemake validate --cores 4
+```
+
 Run only classification for one database:
 ```bash
 snakemake results/project/classified/project-PhyloAlps.motu_table.csv --cores 4
