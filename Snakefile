@@ -33,7 +33,7 @@ rule all:
         [expand([
                 "results/{project}/validation/{project}.all_replicates.tsv",
                 "results/{project}/validation/{project}.sample_replicates.tsv",
-                "results/{project}/validation/{project}.LB_PB_replicttes.tsv",
+                "results/{project}/validation/{project}.LB_PB_replicates.tsv",
                 "results/{project}/validation/{project}.SB_replicates.tsv",
                 "results/{project}/validation/{project}.IB_replicates.tsv",
                 "results/{project}/validation/{project}.duplicate_sample_identity.tsv",

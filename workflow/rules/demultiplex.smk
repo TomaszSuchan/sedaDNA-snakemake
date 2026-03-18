@@ -83,7 +83,7 @@ rule validate_samples:
     output:
         all_replicates_table="results/{project}/validation/{project}.all_replicates.tsv",
         sample_replicates_table="results/{project}/validation/{project}.sample_replicates.tsv",
-        lb_pb_library_table="results/{project}/validation/{project}.LB_PB_replicttes.tsv",
+        lb_pb_library_table="results/{project}/validation/{project}.LB_PB_replicates.tsv",
         sb_sampling_table="results/{project}/validation/{project}.SB_replicates.tsv",
         ib_isolation_table="results/{project}/validation/{project}.IB_replicates.tsv",
         duplicate_identity_table="results/{project}/validation/{project}.duplicate_sample_identity.tsv",

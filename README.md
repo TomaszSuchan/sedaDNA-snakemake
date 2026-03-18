@@ -171,7 +171,7 @@ snakemake --executor slurm \
 - `results/{project}/validation/{library}.barcode_validation.txt`
 - `results/{project}/validation/{project}.all_replicates.tsv`
 - `results/{project}/validation/{project}.sample_replicates.tsv`
-- `results/{project}/validation/{project}.LB_PB_replicttes.tsv`
+- `results/{project}/validation/{project}.LB_PB_replicates.tsv`
 - `results/{project}/validation/{project}.SB_replicates.tsv`
 - `results/{project}/validation/{project}.IB_replicates.tsv`
 - `results/{project}/validation/{project}.duplicate_sample_identity.tsv`
@@ -539,7 +539,7 @@ results/
     │   ├── {library}.barcode_validation.txt
     │   ├── {project}.all_replicates.tsv
     │   ├── {project}.sample_replicates.tsv
-    │   ├── {project}.LB_PB_replicttes.tsv
+    │   ├── {project}.LB_PB_replicates.tsv
     │   ├── {project}.SB_replicates.tsv
     │   ├── {project}.IB_replicates.tsv
     │   ├── {project}.duplicate_sample_identity.tsv
