@@ -166,8 +166,14 @@ snakemake --executor slurm \
 4. Creates OBITools-compatible barcode files for each length
 
 **Output:**
-- `results/{project}/barcodes-{library}_{length}bp_only.txt`
-- `results/{project}/{library}.barcode_validation.txt`
+- `results/{project}/sequences/barcodes-{library}_{length}bp_only.txt`
+- `results/{project}/validation/{library}.barcode_validation.txt`
+- `results/{project}/validation/{project}.sample_replicates.tsv`
+- `results/{project}/validation/{project}.pb_ib_per_library.tsv`
+- `results/{project}/validation/{project}.sb_per_sampling.tsv`
+- `results/{project}/validation/{project}.ib_per_isolation.tsv`
+- `results/{project}/validation/{project}.duplicate_sample_identity.tsv`
+- `results/{project}/validation/{project}.sample_name_errors.tsv`
 
 ### Stage 2: Read Pairing
 
@@ -186,7 +192,7 @@ snakemake --executor slurm \
 - **time** `<INTEGER>`: Maximum time in minutes to spend merging a read pair (default: 60)
 
 **Output:**
-- `results/{project}/{library}.paired.fastq.gz`
+- `results/{project}/sequences/{library}.paired.fastq.gz`
 
 ### Stage 3: Demultiplexing
 
@@ -205,9 +211,9 @@ snakemake --executor slurm \
 - **time** `<INTEGER>`: Maximum time in minutes to spend demultiplexing a library (default: 60)
 
 **Output:**
-- `results/{project}/{library}.demux_{length}bp.fastq.gz` (per barcode length)
-- `results/{project}/{library}.demux.fastq.gz` (concatenated)
-- `stats/{project}/{library}.demux_stats.json` (read counts per sample)
+- `results/{project}/sequences/{library}.demux_{length}bp.fastq.gz` (per barcode length)
+- `results/{project}/sequences/{library}.demux.fastq.gz` (concatenated)
+- `results/{project}/stats/{library}.demux_stats.json` (read counts per sample)
 
 ### Stage 4: Dereplication and Filtering
 
@@ -244,7 +250,7 @@ snakemake --executor slurm \
 - **time** `<INTEGER>`: Maximum time in minutes to spend cleaning sequences (default: 60)
 
 **Output:**
-- `results/{project}/{library}.demux.uniq.filtered.denoised.fasta.gz`
+- `results/{project}/sequences/{library}.demux.uniq.filtered.denoised.fasta.gz`
 
 ### Stage 5: Library Merging and Classification
 
@@ -263,10 +269,10 @@ snakemake --executor slurm \
 - Multiple databases can be specified per project
 
 **Output:**
-- `results-classified/{project}/{project}-merged.fasta.gz`
-- `results-classified/{project}/{project}-{db}.classified.fasta`
-- `results-classified/{project}/{project}-{db}.motu_table.csv`
-- `results-classified/{project}/{project}-{db}.classification_table.csv`
+- `results/{project}/sequences/{project}-merged.fasta.gz`
+- `results/{project}/classified/{project}-{db}.classified.fasta`
+- `results/{project}/classified/{project}-{db}.motu_table.csv`
+- `results/{project}/classified/{project}-{db}.classification_table.csv`
 
 ---
 
@@ -372,7 +378,7 @@ A sequence is flagged for removal if **ANY** condition is met:
 
 ### Output Files
 
-**Main table:** `results-tables/{project}/{project}-{db}-combined_classification_table.csv`
+**Main table:** `results/{project}/tables/{project}-{db}-classification_table.csv`
 
 **Key columns:**
 
@@ -402,7 +408,7 @@ A sequence is flagged for removal if **ANY** condition is met:
 | `obitag_rank` | Taxonomic rank returned by obitag (e.g., species, genus, family) |
 | `taxon` | Taxonomic name assigned by obitag |
 
-**Processing info:** `results-tables/{project}/{project}-{db}-classification_info.txt`
+**Processing info:** `results/{project}/tables/{project}-{db}-classification_info.txt`
 
 Contains statistics on filtering at each stage.
 
@@ -473,7 +479,7 @@ ZSG-3   025_D1  Picea abies      286
 
 ### Output Files
 
-**Clustered table:** `results-tables/{project}/{project}-{db}-clustered_taxa_table.csv`
+**Clustered table:** `results/{project}/tables/{project}-{db}-clustered_taxa_table.csv`
 
 **Columns:**
 - `core`, `depth`: Sample location
@@ -482,7 +488,7 @@ ZSG-3   025_D1  Picea abies      286
 - `obitag_rank`: Taxonomic rank
 - `total_reads`: Aggregated abundance across all sequences
 
-**Processing info:** `results-tables/{project}/{project}-{db}-clustered_taxa_info.txt`
+**Processing info:** `results/{project}/tables/{project}-{db}-clustered_taxa_info.txt`
 
 Contains statistics on filtering and clustering.
 
@@ -512,13 +518,13 @@ Classified sequences
 ├─ reads_replicates filter: Require minimum replication
 ├─ reads_across filter: Require minimum total reads
 ├─ Blank contamination filter: Remove if in LB/PB/IB/SB
-└─ Valid sequences: ~2,000 sequence-location combinations
+└─ Valid sequences
     ↓ [cluster_taxa.R: Identity + Rank filtering]
 ├─ min_identity filter: Remove low-confidence assignments (<97%)
 ├─ Rank filter: Remove assignments above family level
-└─ Valid taxa: ~1,500
+└─ Valid taxa
     ↓ [Clustering by taxon]
-Final taxa-location combinations: ~500
+Final taxa-location combinations
 ```
 
 ---
@@ -526,41 +532,46 @@ Final taxa-location combinations: ~500
 ## 7. Output Directory Structure
 ```
 results/
-├── {project}/
-│   ├── {library}.paired.fastq.gz
-│   ├── {library}.demux_{length}bp.fastq.gz
-│   ├── {library}.demux.fastq.gz
-│   ├── {library}.demux.uniq.fasta.gz
-│   ├── {library}.demux.uniq.filtered.fasta.gz
-│   ├── {library}.demux.uniq.filtered.denoised.fasta.gz
-│   └── barcodes-{library}_{length}bp_only.txt
-
-results-classified/
-├── {project}/
-│   ├── {project}-merged.fasta.gz
-│   ├── {project}-{db}.classified.fasta
-│   ├── {project}-{db}.motu_table.csv
-│   └── {project}-{db}.classification_table.csv
-
-results-tables/
-├── {project}/
-│   ├── {project}-{db}-combined_classification_table.csv
-│   ├── {project}-{db}-combined_classification_info.txt
-│   ├── {project}-{db}-clustered_taxa_table.csv
-│   └── {project}-{db}-clustered_taxa_info.txt
-
-stats/
-├── {project}/
-│   ├── {library}.raw_stats.json
-│   ├── {library}.pair_stats.json
-│   ├── {library}.demux_stats.json
-│   └── {project}.demux_stats_combined.json
+└── {project}/
+    ├── validation/
+    │   ├── {library}.barcode_validation.txt
+    │   ├── {project}.sample_replicates.tsv
+    │   ├── {project}.pb_ib_per_library.tsv
+    │   ├── {project}.sb_per_sampling.tsv
+    │   ├── {project}.ib_per_isolation.tsv
+    │   ├── {project}.duplicate_sample_identity.tsv
+    │   └── {project}.sample_name_errors.tsv
+    ├── sequences/
+    │   ├── barcodes-{library}_{length}bp_only.txt
+    │   ├── {library}.paired.fastq.gz
+    │   ├── {library}.demux_{length}bp.fastq.gz
+    │   ├── {library}.demux.fastq.gz
+    │   ├── {library}.demux.uniq.fasta.gz
+    │   ├── {library}.demux.uniq.filtered.fasta.gz
+    │   ├── {library}.demux.uniq.filtered.denoised.fasta.gz
+    │   └── {project}-merged.fasta.gz
+    ├── classified/
+    │   ├── {project}-{db}.classified.fasta
+    │   ├── {project}-{db}.classified.no_annot.fasta
+    │   ├── {project}-{db}.motu_table.csv
+    │   └── {project}-{db}.classification_table.csv
+    ├── tables/
+    │   ├── {project}-{db}-classification_table.csv
+    │   ├── {project}-{db}-classification_info.txt
+    │   ├── {project}-{db}-clustered_taxa_table.csv
+    │   └── {project}-{db}-clustered_taxa_info.txt
+    └── stats/
+        ├── {library}.raw_stats.json
+        ├── {library}.pair_stats.json
+        ├── {library}.demux_stats.json
+        ├── {library}.merged_stats.tsv
+        └── {project}.demux_stats_combined.json
 
 logs/
 └── {project}/
     ├── {library}.paired.log
     ├── {library}.demux_{length}bp.log
-    ├── {project}-{db}-combined_classification_table.log
+    ├── {project}-{db}-classification_table.log
     └── {project}-{db}-clustered_taxa_table.log
 ```
 
@@ -585,12 +596,12 @@ If using this pipeline, please cite:
 
 Run only classification for one database:
 ```bash
-snakemake results-classified/project/project-PhyloAlps.motu_table.csv --cores 4
+snakemake results/project/classified/project-PhyloAlps.motu_table.csv --cores 4
 ```
 
 Run only final tables:
 ```bash
-snakemake results-tables/project/project-PhyloAlps-clustered_taxa_table.csv --cores 4
+snakemake results/project/tables/project-PhyloAlps-clustered_taxa_table.csv --cores 4
 ```
 
 ### Reprocessing with Different Parameters

@@ -2,7 +2,7 @@ rule raw_stats:
     input:
         lambda wildcards: config["projects"][wildcards.project]["libraries"][wildcards.library]["forward"]
     output:
-        "stats/{project}/{library}.raw_stats.json"
+        "results/{project}/stats/{library}.raw_stats.json"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
@@ -13,9 +13,9 @@ rule raw_stats:
 
 rule pair_stats:
     input:
-        "results-sequences/{project}/{library}.paired.fastq.gz"
+        "results/{project}/sequences/{library}.paired.fastq.gz"
     output:
-        "stats/{project}/{library}.pair_stats.json"
+        "results/{project}/stats/{library}.pair_stats.json"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
@@ -26,9 +26,9 @@ rule pair_stats:
 
 rule demux_stats:
     input:
-        "results-sequences/{project}/{library}.demux.fastq.gz"
+        "results/{project}/sequences/{library}.demux.fastq.gz"
     output:
-        "stats/{project}/{library}.demux_stats.json"
+        "results/{project}/stats/{library}.demux_stats.json"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
     resources:
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
@@ -39,10 +39,10 @@ rule demux_stats:
 
 rule demultiplex_stats:
     input:
-        expand("stats/{{project}}/{library}.demux_stats.json",
+        expand("results/{{project}}/stats/{library}.demux_stats.json",
                library=lambda wildcards: config["projects"][wildcards.project]["libraries"])
     output:
-        "stats/{project}/{project}.demux_stats_combined.json"
+        "results/{project}/stats/{project}.demux_stats_combined.json"
     run:
         import json
 
@@ -58,11 +58,11 @@ rule demultiplex_stats:
 
 rule merge_json_read_counts:
     input:
-        raw="stats/{project}/{library}.raw_stats.json",
-        pair="stats/{project}/{library}.pair_stats.json",
-        demux="stats/{project}/{library}.demux_stats.json"
+        raw="results/{project}/stats/{library}.raw_stats.json",
+        pair="results/{project}/stats/{library}.pair_stats.json",
+        demux="results/{project}/stats/{library}.demux_stats.json"
     output:
-        "stats/{project}/{library}.merged_stats.tsv"
+        "results/{project}/stats/{library}.merged_stats.tsv"
     run:
         import json, yaml, pandas as pd
         

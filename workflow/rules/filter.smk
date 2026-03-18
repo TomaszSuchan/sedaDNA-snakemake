@@ -1,8 +1,8 @@
 rule dereplicate:
     input:
-        "results-sequences/{project}/{library}.demux.fastq.gz"
+        "results/{project}/sequences/{library}.demux.fastq.gz"
     output:
-        temp("results-sequences/{project}/{library}.demux.uniq.fasta.gz")
+        temp("results/{project}/sequences/{library}.demux.uniq.fasta.gz")
     log:
         "logs/{project}/{library}.demux.uniq.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
@@ -16,9 +16,9 @@ rule dereplicate:
 
 rule filter_annotations:
     input:
-        "results-sequences/{project}/{library}.demux.uniq.fasta.gz"
+        "results/{project}/sequences/{library}.demux.uniq.fasta.gz"
     output:
-        temp("results-sequences/{project}/{library}.demux.uniq.counts.fasta.gz")
+        temp("results/{project}/sequences/{library}.demux.uniq.counts.fasta.gz")
     log:
         "logs/{project}/{library}.demux.uniq.counts.log"
     params:
@@ -35,9 +35,9 @@ rule filter_annotations:
 
 rule filter_counts:
     input:
-        "results-sequences/{project}/{library}.demux.uniq.counts.fasta.gz"
+        "results/{project}/sequences/{library}.demux.uniq.counts.fasta.gz"
     output:
-        temp("results-sequences/{project}/{library}.demux.uniq.filtered.fasta.gz")
+        temp("results/{project}/sequences/{library}.demux.uniq.filtered.fasta.gz")
     log:
         "logs/{project}/{library}.demux.uniq.filtered.log"
     params:
@@ -55,9 +55,9 @@ rule filter_counts:
 
 rule denoise:
     input:
-        "results-sequences/{project}/{library}.demux.uniq.filtered.fasta.gz"
+        "results/{project}/sequences/{library}.demux.uniq.filtered.fasta.gz"
     output:
-        "results-sequences/{project}/{library}.demux.uniq.filtered.denoised.fasta.gz"
+        "results/{project}/sequences/{library}.demux.uniq.filtered.denoised.fasta.gz"
     log:
         "logs/{project}/{library}.demux.uniq.filtered.denoised.log"
     params:

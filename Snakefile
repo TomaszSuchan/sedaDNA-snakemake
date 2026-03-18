@@ -25,53 +25,53 @@ include: "workflow/rules/analyze.smk"
 rule all:
     input:
         # Validation reports - all projects
-        [expand("results-sequences/{project}/{library}.barcode_validation.txt",
+        [expand("results/{project}/validation/{library}.barcode_validation.txt",
                 project=project,
                 library=PROJECT_LIBRARIES[project])
          for project in PROJECTS],
         # Barcode sanity reports - all projects
         [expand([
-                "results-sequences/{project}/{project}.sample_replicates.tsv",
-                "results-sequences/{project}/{project}.pb_ib_per_library.tsv",
-                "results-sequences/{project}/{project}.sb_per_sampling.tsv",
-                "results-sequences/{project}/{project}.ib_per_isolation.tsv",
-                "results-sequences/{project}/{project}.duplicate_sample_identity.tsv",
-                "results-sequences/{project}/{project}.sample_name_errors.tsv"
+                "results/{project}/validation/{project}.sample_replicates.tsv",
+                "results/{project}/validation/{project}.pb_ib_per_library.tsv",
+                "results/{project}/validation/{project}.sb_per_sampling.tsv",
+                "results/{project}/validation/{project}.ib_per_isolation.tsv",
+                "results/{project}/validation/{project}.duplicate_sample_identity.tsv",
+                "results/{project}/validation/{project}.sample_name_errors.tsv"
             ],
             project=project)
          for project in PROJECTS],
         # Demultiplexed files - all projects
-        [expand("results-sequences/{project}/{library}.demux.fastq.gz",
+        [expand("results/{project}/sequences/{library}.demux.fastq.gz",
                 project=project,
                 library=PROJECT_LIBRARIES[project])
          for project in PROJECTS],
         # Pairing, dereplication stats - all projects
-        [expand("stats/{project}/{library}.merged_stats.tsv",
+        [expand("results/{project}/stats/{library}.merged_stats.tsv",
                 project=project,
                 library=PROJECT_LIBRARIES[project])
          for project in PROJECTS],
         # Classified fasta files for each database
-        [expand("results-classified/{project}/{project}-{db}.classified.no_annot.fasta",
+        [expand("results/{project}/classified/{project}-{db}.classified.no_annot.fasta",
                 project=project,
                 db=PROJECT_DBS[project])
          for project in PROJECTS],
         # MOTU tables - all projects
-        [expand("results-classified/{project}/{project}-{db}.motu_table.csv",
+        [expand("results/{project}/classified/{project}-{db}.motu_table.csv",
                 project=project,
                 db=PROJECT_DBS[project])
          for project in PROJECTS],
         # Classification tables - all projects
-        [expand("results-classified/{project}/{project}-{db}.classification_table.csv",
+        [expand("results/{project}/classified/{project}-{db}.classification_table.csv",
                 project=project,
                 db=PROJECT_DBS[project])
          for project in PROJECTS],
         # Final processed MOTU table - all projects, all databases
-        [expand("results-tables/{project}/{project}-{db}-classification_table.csv",
+        [expand("results/{project}/tables/{project}-{db}-classification_table.csv",
                 project=project,
                 db=PROJECT_DBS[project])
          for project in PROJECTS],
         # Final clustered taxa table - all projects, all databases
-        [expand("results-tables/{project}/{project}-{db}-clustered_taxa_table.csv",
+        [expand("results/{project}/tables/{project}-{db}-clustered_taxa_table.csv",
                 project=project,
                 db=PROJECT_DBS[project])
          for project in PROJECTS]

@@ -8,11 +8,11 @@ rule download_ncbitaxo:
 
 rule merge_all_libraries:
     input:
-        lambda wildcards: expand("results-sequences/{project}/{library}.demux.uniq.filtered.denoised.fasta.gz",
+        lambda wildcards: expand("results/{project}/sequences/{library}.demux.uniq.filtered.denoised.fasta.gz",
                                 project=wildcards.project,
                                 library=PROJECT_LIBRARIES[wildcards.project])
     output:
-        "results-sequences/{project}/{project}-merged.fasta.gz"
+        "results/{project}/sequences/{project}-merged.fasta.gz"
     shell:
         """
         cat {input} > {output}
@@ -20,10 +20,10 @@ rule merge_all_libraries:
 
 rule classify:
     input:
-        fasta = "results-sequences/{project}/{project}-merged.fasta.gz",
+        fasta = "results/{project}/sequences/{project}-merged.fasta.gz",
         taxonomy = "data/ncbitaxo.tgz"
     output:
-        temp("results-classified/{project}/{project}-{db}.classified.fasta")
+        temp("results/{project}/classified/{project}-{db}.classified.fasta")
     log:
         "logs/{project}/{project}-{db}.classified.log"
     params:
@@ -43,9 +43,9 @@ rule classify:
 
 rule remove_annotations:
     input:
-        "results-classified/{project}/{project}-{db}.classified.fasta"
+        "results/{project}/classified/{project}-{db}.classified.fasta"
     output:
-        "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
+        "results/{project}/classified/{project}-{db}.classified.no_annot.fasta"
     log:
         "logs/{project}/{project}-{db}.classified.no_annot.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
@@ -67,9 +67,9 @@ rule remove_annotations:
 
 rule export_motu_tables:
     input:
-        "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
+        "results/{project}/classified/{project}-{db}.classified.no_annot.fasta"
     output:
-        "results-classified/{project}/{project}-{db}.motu_table.csv"
+        "results/{project}/classified/{project}-{db}.motu_table.csv"
     log:
         "logs/{project}/{project}-{db}.motu_table.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
@@ -85,9 +85,9 @@ rule export_motu_tables:
 
 rule export_classification_tables:
     input:
-        "results-classified/{project}/{project}-{db}.classified.no_annot.fasta"
+        "results/{project}/classified/{project}-{db}.classified.no_annot.fasta"
     output:
-        "results-classified/{project}/{project}-{db}.classification_table.csv"
+        "results/{project}/classified/{project}-{db}.classification_table.csv"
     log:
         "logs/{project}/{project}-{db}.classification_table.log"
     threads: lambda wildcards: config["projects"][wildcards.project]["parameters"].get("max-cpu", 1)
