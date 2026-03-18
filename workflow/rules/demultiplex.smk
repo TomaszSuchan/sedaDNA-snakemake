@@ -325,6 +325,19 @@ rule validate_samples:
         sample_name_errors = sample_name_errors.sort_values(["library_config", "sample"])
         sample_name_errors.to_csv(output.sample_name_errors_table, sep="\t", index=False)
 
+        # Stop the workflow if critical naming/identity issues are detected.
+        duplicate_count = len(duplicate_identity)
+        name_error_count = len(sample_name_errors)
+        if duplicate_count > 0 or name_error_count > 0:
+            raise ValueError(
+                "validate_samples failed: "
+                f"{duplicate_count} duplicate sample identities found "
+                f"(see {output.duplicate_identity_table}), "
+                f"{name_error_count} sample name errors found "
+                f"(see {output.sample_name_errors_table}). "
+                "Fix barcode sample names and rerun."
+            )
+
 # Split barcode files by length (dynamic)
 rule split_barcodes:
     input:

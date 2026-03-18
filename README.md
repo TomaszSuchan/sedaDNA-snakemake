@@ -157,13 +157,14 @@ snakemake --executor slurm \
 
 ### Stage 1: Barcode Validation and Splitting
 
-**Rule:** `validate_barcodes`, `split_barcodes`
+**Rule:** `validate_barcodes`, `validate_samples`, `split_barcodes`
 
 **Process:**
 1. Validates barcode file format (required columns, duplicate checks)
 2. Analyzes barcode length distribution
 3. Splits barcode files by length (e.g., 8bp, 9bp)
 4. Creates OBITools-compatible barcode files for each length
+5. Stops the workflow if duplicate sample identities or invalid sample-name formats are detected
 
 **Output:**
 - `results/{project}/sequences/barcodes-{library}_{length}bp_only.txt`
