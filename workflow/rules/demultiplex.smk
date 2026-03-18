@@ -82,9 +82,9 @@ rule validate_samples:
         )
     output:
         replicate_table="results/{project}/validation/{project}.sample_replicates.tsv",
-        lb_pb_library_table="results/{project}/validation/{project}.lb_pb_per_library.tsv",
-        sb_sampling_table="results/{project}/validation/{project}.sb_per_sampling.tsv",
-        ib_isolation_table="results/{project}/validation/{project}.ib_per_isolation.tsv",
+        lb_pb_library_table="results/{project}/validation/{project}.LB_PB_per_library.tsv",
+        sb_sampling_table="results/{project}/validation/{project}.SB_per_sampling.tsv",
+        ib_isolation_table="results/{project}/validation/{project}.IB_per_isolation.tsv",
         duplicate_identity_table="results/{project}/validation/{project}.duplicate_sample_identity.tsv",
         sample_name_errors_table="results/{project}/validation/{project}.sample_name_errors.tsv"
     run:
@@ -190,10 +190,10 @@ rule validate_samples:
 
         combined_valid["sampling_unit"] = combined_valid.apply(
             lambda row: (
-                f"{row['core']}_{row['sampling_batch']}_{row['isolation_batch']}"
+                f"{row['core']}_{row['sampling_batch']}"
                 if row["blank_type"] == "SAMPLE"
                 else (
-                    f"{row['core']}_{row['depth']}_{row['isolation_batch']}"
+                    f"{row['core']}_{row['depth']}"
                     if row["blank_type"] == "SB"
                     else None
                 )
@@ -247,50 +247,45 @@ rule validate_samples:
 
         sampling_base = (
             combined_valid[combined_valid["blank_type"].isin(["SAMPLE", "SB"])]
-            .loc[:, ["library_from_sample", "sampling_unit"]]
+            .loc[:, ["sampling_unit"]]
             .dropna()
             .drop_duplicates()
-            .rename(columns={"library_from_sample": "library", "sampling_unit": "sampling"})
+            .rename(columns={"sampling_unit": "sampling"})
         )
         sb_counts = (
             combined_valid[combined_valid["blank_type"] == "SB"]
-            .groupby(["library_from_sample", "sampling_unit"], dropna=False)
-            .agg(n_SB_replicates=("replicate", "nunique"))
+            .groupby(["sampling_unit"], dropna=False)
+            .agg(n_SB_replicates=("sample", "size"))
             .reset_index()
-            .rename(columns={"library_from_sample": "library"})
             .rename(columns={"sampling_unit": "sampling"})
         )
-        sb_per_sampling = (
-            sampling_base
-            .merge(sb_counts, on=["library", "sampling"], how="left")
-            .fillna(0)
-            .sort_values(["library", "sampling"])
-        )
+        sb_per_sampling = sampling_base.merge(sb_counts, on=["sampling"], how="left").fillna(0).sort_values(["sampling"])
         sb_per_sampling["n_SB_replicates"] = sb_per_sampling["n_SB_replicates"].astype(int)
+        sb_per_sampling = sb_per_sampling[["sampling", "n_SB_replicates"]]
         sb_per_sampling.to_csv(output.sb_sampling_table, sep="\t", index=False)
 
         isolation_base = (
             combined_valid[combined_valid["blank_type"].isin(["SAMPLE", "SB", "IB"])]
-            .loc[:, ["library_from_sample", "isolation_batch"]]
+            .loc[:, ["isolation_batch"]]
             .dropna()
             .drop_duplicates()
-            .rename(columns={"library_from_sample": "library", "isolation_batch": "isolation"})
+            .rename(columns={"isolation_batch": "isolation"})
         )
         ib_counts = (
             combined_valid[combined_valid["blank_type"] == "IB"]
-            .groupby(["library_from_sample", "isolation_batch"], dropna=False)
-            .agg(n_IB_replicates=("replicate", "nunique"))
+            .groupby(["isolation_batch"], dropna=False)
+            .agg(n_IB_replicates=("sample", "size"))
             .reset_index()
-            .rename(columns={"library_from_sample": "library"})
             .rename(columns={"isolation_batch": "isolation"})
         )
         ib_per_isolation = (
             isolation_base
-            .merge(ib_counts, on=["library", "isolation"], how="left")
+            .merge(ib_counts, on=["isolation"], how="left")
             .fillna(0)
-            .sort_values(["library", "isolation"])
+            .sort_values(["isolation"])
         )
         ib_per_isolation["n_IB_replicates"] = ib_per_isolation["n_IB_replicates"].astype(int)
+        ib_per_isolation = ib_per_isolation[["isolation", "n_IB_replicates"]]
         ib_per_isolation.to_csv(output.ib_isolation_table, sep="\t", index=False)
 
         duplicate_identity = (
