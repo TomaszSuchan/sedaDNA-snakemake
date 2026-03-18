@@ -32,7 +32,7 @@ rule all:
         # Barcode sanity reports - all projects
         [expand([
                 "results/{project}/validation/{project}.sample_replicates.tsv",
-                "results/{project}/validation/{project}.pb_ib_per_library.tsv",
+                "results/{project}/validation/{project}.lb_pb_per_library.tsv",
                 "results/{project}/validation/{project}.sb_per_sampling.tsv",
                 "results/{project}/validation/{project}.ib_per_isolation.tsv",
                 "results/{project}/validation/{project}.duplicate_sample_identity.tsv",

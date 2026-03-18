@@ -169,7 +169,7 @@ snakemake --executor slurm \
 - `results/{project}/sequences/barcodes-{library}_{length}bp_only.txt`
 - `results/{project}/validation/{library}.barcode_validation.txt`
 - `results/{project}/validation/{project}.sample_replicates.tsv`
-- `results/{project}/validation/{project}.pb_ib_per_library.tsv`
+- `results/{project}/validation/{project}.lb_pb_per_library.tsv`
 - `results/{project}/validation/{project}.sb_per_sampling.tsv`
 - `results/{project}/validation/{project}.ib_per_isolation.tsv`
 - `results/{project}/validation/{project}.duplicate_sample_identity.tsv`
@@ -536,7 +536,7 @@ results/
     ├── validation/
     │   ├── {library}.barcode_validation.txt
     │   ├── {project}.sample_replicates.tsv
-    │   ├── {project}.pb_ib_per_library.tsv
+    │   ├── {project}.lb_pb_per_library.tsv
     │   ├── {project}.sb_per_sampling.tsv
     │   ├── {project}.ib_per_isolation.tsv
     │   ├── {project}.duplicate_sample_identity.tsv

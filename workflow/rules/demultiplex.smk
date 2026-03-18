@@ -82,7 +82,7 @@ rule validate_samples:
         )
     output:
         replicate_table="results/{project}/validation/{project}.sample_replicates.tsv",
-        pb_ib_library_table="results/{project}/validation/{project}.pb_ib_per_library.tsv",
+        lb_pb_library_table="results/{project}/validation/{project}.lb_pb_per_library.tsv",
         sb_sampling_table="results/{project}/validation/{project}.sb_per_sampling.tsv",
         ib_isolation_table="results/{project}/validation/{project}.ib_per_isolation.tsv",
         duplicate_identity_table="results/{project}/validation/{project}.duplicate_sample_identity.tsv",
@@ -159,9 +159,6 @@ rule validate_samples:
                     else:
                         errors.append("non_numeric_replicate")
 
-            if library is not None and str(library) != str(library_config):
-                errors.append("library_mismatch_with_config")
-
             return pd.Series({
                 "blank_type": blank_type,
                 "core": core,
@@ -191,56 +188,109 @@ rule validate_samples:
         combined["sample_no_replicate"] = combined["sample"].map(sample_no_replicate)
         combined_valid = combined[combined["sample_name_error"] == ""].copy()
 
+        combined_valid["sampling_unit"] = combined_valid.apply(
+            lambda row: (
+                f"{row['core']}_{row['sampling_batch']}_{row['isolation_batch']}"
+                if row["blank_type"] == "SAMPLE"
+                else (
+                    f"{row['core']}_{row['depth']}_{row['isolation_batch']}"
+                    if row["blank_type"] == "SB"
+                    else None
+                )
+            ),
+            axis=1
+        )
+
         replicate_table = (
             combined_valid
-            .groupby(["blank_type", "sample_no_replicate"], dropna=False)
+            .groupby(["sample_no_replicate"], dropna=False)
             .agg(
-                n_replicates=("replicate", "nunique"),
-                min_replicate=("replicate", "min"),
-                max_replicate=("replicate", "max")
+                n_replicates=("replicate", "nunique")
             )
             .reset_index()
-            .sort_values(["blank_type", "sample_no_replicate"])
+            .sort_values(["sample_no_replicate"])
             .rename(columns={"sample_no_replicate": "sample"})
         )
         replicate_table.to_csv(output.replicate_table, sep="\t", index=False)
 
-        pb_ib_per_library = (
-            combined_valid[combined_valid["blank_type"].isin(["PB", "IB"])]
-            .groupby(["library_from_sample", "blank_type"], dropna=False)
-            .size()
-            .reset_index(name="n")
-            .pivot(index="library_from_sample", columns="blank_type", values="n")
-            .fillna(0)
-            .astype(int)
+        libraries = (
+            combined_valid[["library_from_sample"]]
+            .dropna()
+            .drop_duplicates()
+            .rename(columns={"library_from_sample": "library"})
+            .sort_values("library")
+        )
+
+        lb_counts = (
+            combined_valid[combined_valid["blank_type"] == "LB"]
+            .groupby("library_from_sample", dropna=False)
+            .agg(n_LB_replicates=("replicate", "nunique"))
             .reset_index()
             .rename(columns={"library_from_sample": "library"})
         )
-        if "PB" not in pb_ib_per_library.columns:
-            pb_ib_per_library["PB"] = 0
-        if "IB" not in pb_ib_per_library.columns:
-            pb_ib_per_library["IB"] = 0
-        pb_ib_per_library = pb_ib_per_library[["library", "PB", "IB"]].sort_values("library")
-        pb_ib_per_library.to_csv(output.pb_ib_library_table, sep="\t", index=False)
-
-        sb_per_sampling = (
-            combined_valid[combined_valid["blank_type"] == "SB"]
-            .groupby(["library_from_sample", "sampling_id"], dropna=False)
-            .size()
-            .reset_index(name="n_SB")
+        pb_counts = (
+            combined_valid[combined_valid["blank_type"] == "PB"]
+            .groupby("library_from_sample", dropna=False)
+            .agg(n_PB_replicates=("replicate", "nunique"))
+            .reset_index()
             .rename(columns={"library_from_sample": "library"})
-            .sort_values(["library", "sampling_id"])
         )
+        lb_pb_per_library = (
+            libraries
+            .merge(lb_counts, on="library", how="left")
+            .merge(pb_counts, on="library", how="left")
+            .fillna(0)
+        )
+        lb_pb_per_library["n_LB_replicates"] = lb_pb_per_library["n_LB_replicates"].astype(int)
+        lb_pb_per_library["n_PB_replicates"] = lb_pb_per_library["n_PB_replicates"].astype(int)
+        lb_pb_per_library.to_csv(output.lb_pb_library_table, sep="\t", index=False)
+
+        sampling_base = (
+            combined_valid[combined_valid["blank_type"].isin(["SAMPLE", "SB"])]
+            .loc[:, ["library_from_sample", "sampling_unit"]]
+            .dropna()
+            .drop_duplicates()
+            .rename(columns={"library_from_sample": "library", "sampling_unit": "sampling"})
+        )
+        sb_counts = (
+            combined_valid[combined_valid["blank_type"] == "SB"]
+            .groupby(["library_from_sample", "sampling_unit"], dropna=False)
+            .agg(n_SB_replicates=("replicate", "nunique"))
+            .reset_index()
+            .rename(columns={"library_from_sample": "library"})
+            .rename(columns={"sampling_unit": "sampling"})
+        )
+        sb_per_sampling = (
+            sampling_base
+            .merge(sb_counts, on=["library", "sampling"], how="left")
+            .fillna(0)
+            .sort_values(["library", "sampling"])
+        )
+        sb_per_sampling["n_SB_replicates"] = sb_per_sampling["n_SB_replicates"].astype(int)
         sb_per_sampling.to_csv(output.sb_sampling_table, sep="\t", index=False)
 
-        ib_per_isolation = (
+        isolation_base = (
+            combined_valid[combined_valid["blank_type"].isin(["SAMPLE", "SB", "IB"])]
+            .loc[:, ["library_from_sample", "isolation_batch"]]
+            .dropna()
+            .drop_duplicates()
+            .rename(columns={"library_from_sample": "library", "isolation_batch": "isolation"})
+        )
+        ib_counts = (
             combined_valid[combined_valid["blank_type"] == "IB"]
             .groupby(["library_from_sample", "isolation_batch"], dropna=False)
-            .size()
-            .reset_index(name="n_IB")
+            .agg(n_IB_replicates=("replicate", "nunique"))
+            .reset_index()
             .rename(columns={"library_from_sample": "library"})
-            .sort_values(["library", "isolation_batch"])
+            .rename(columns={"isolation_batch": "isolation"})
         )
+        ib_per_isolation = (
+            isolation_base
+            .merge(ib_counts, on=["library", "isolation"], how="left")
+            .fillna(0)
+            .sort_values(["library", "isolation"])
+        )
+        ib_per_isolation["n_IB_replicates"] = ib_per_isolation["n_IB_replicates"].astype(int)
         ib_per_isolation.to_csv(output.ib_isolation_table, sep="\t", index=False)
 
         duplicate_identity = (
