@@ -336,18 +336,26 @@ rule validate_samples:
         sample_name_errors = sample_name_errors.sort_values(["library_config", "sample"])
         sample_name_errors.to_csv(output.sample_name_errors_table, sep="\t", index=False)
 
-        # Stop the workflow if critical naming/identity issues are detected.
-        duplicate_count = len(duplicate_identity)
-        name_error_count = len(sample_name_errors)
-        if duplicate_count > 0 or name_error_count > 0:
-            raise ValueError(
-                "validate_samples failed: "
-                f"{duplicate_count} duplicate sample identities found "
-                f"(see {output.duplicate_identity_table}), "
-                f"{name_error_count} sample name errors found "
-                f"(see {output.sample_name_errors_table}). "
-                "Fix barcode sample names and rerun."
-            )
+rule validate_samples_gate:
+    input:
+        duplicate_identity_table="results/{project}/validation/{project}.duplicate_sample_identity.tsv",
+        sample_name_errors_table="results/{project}/validation/{project}.sample_name_errors.tsv"
+    output:
+        "results/{project}/validation/{project}.validation_passed.txt"
+    run:
+        duplicate_count = len(pd.read_csv(input.duplicate_identity_table, sep="\t"))
+        name_error_count = len(pd.read_csv(input.sample_name_errors_table, sep="\t"))
+        with open(output[0], "w") as f:
+            if duplicate_count > 0 or name_error_count > 0:
+                f.write(
+                    "FAIL\t"
+                    f"duplicate_sample_identities={duplicate_count}\t"
+                    f"sample_name_errors={name_error_count}\t"
+                    f"duplicate_file={input.duplicate_identity_table}\t"
+                    f"errors_file={input.sample_name_errors_table}\n"
+                )
+            else:
+                f.write("PASS\tduplicate_sample_identities=0\tsample_name_errors=0\n")
 
 # Split barcode files by length (dynamic)
 rule split_barcodes:

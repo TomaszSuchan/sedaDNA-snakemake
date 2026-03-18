@@ -164,7 +164,7 @@ snakemake --executor slurm \
 2. Analyzes barcode length distribution
 3. Splits barcode files by length (e.g., 8bp, 9bp)
 4. Creates OBITools-compatible barcode files for each length
-5. Stops the workflow if duplicate sample identities or invalid sample-name formats are detected
+5. Writes validation reports and stores PASS/FAIL status for sample naming and duplicate identity checks
 
 **Output:**
 - `results/{project}/sequences/barcodes-{library}_{length}bp_only.txt`
@@ -176,6 +176,8 @@ snakemake --executor slurm \
 - `results/{project}/validation/{project}.IB_replicates.tsv`
 - `results/{project}/validation/{project}.duplicate_sample_identity.tsv`
 - `results/{project}/validation/{project}.sample_name_errors.tsv`
+- `results/{project}/validation/{project}.validation_passed.txt`
+- `results/{project}/validation/{project}.validation_asserted.txt` (created in full runs after all downstream rules finish)
 
 ### Stage 2: Read Pairing
 
@@ -543,7 +545,9 @@ results/
     │   ├── {project}.SB_replicates.tsv
     │   ├── {project}.IB_replicates.tsv
     │   ├── {project}.duplicate_sample_identity.tsv
-    │   └── {project}.sample_name_errors.tsv
+    │   ├── {project}.sample_name_errors.tsv
+    │   ├── {project}.validation_passed.txt
+    │   └── {project}.validation_asserted.txt
     ├── sequences/
     │   ├── barcodes-{library}_{length}bp_only.txt
     │   ├── {library}.paired.fastq.gz

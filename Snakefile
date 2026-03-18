@@ -21,6 +21,26 @@ include: "workflow/rules/stats.smk"
 include: "workflow/rules/classify.smk"
 include: "workflow/rules/analyze.smk"
 
+rule assert_validation:
+    input:
+        status="results/{project}/validation/{project}.validation_passed.txt",
+        clustered=lambda wildcards: expand(
+            "results/{project}/tables/{project}-{db}-clustered_taxa_table.csv",
+            project=wildcards.project,
+            db=PROJECT_DBS[wildcards.project]
+        )
+    output:
+        "results/{project}/validation/{project}.validation_asserted.txt"
+    run:
+        status_line = open(input.status).read().strip()
+        if status_line.startswith("FAIL"):
+            raise ValueError(
+                "Validation failed at end of workflow. "
+                f"Details: {status_line}"
+            )
+        with open(output[0], "w") as out:
+            out.write("Validation asserted at end of workflow.\n")
+
 # Validation-only target
 rule validate:
     input:
@@ -37,7 +57,8 @@ rule validate:
                 "results/{project}/validation/{project}.SB_replicates.tsv",
                 "results/{project}/validation/{project}.IB_replicates.tsv",
                 "results/{project}/validation/{project}.duplicate_sample_identity.tsv",
-                "results/{project}/validation/{project}.sample_name_errors.tsv"
+                "results/{project}/validation/{project}.sample_name_errors.tsv",
+                "results/{project}/validation/{project}.validation_passed.txt"
             ],
             project=project)
          for project in PROJECTS]
@@ -58,7 +79,9 @@ rule all:
                 "results/{project}/validation/{project}.SB_replicates.tsv",
                 "results/{project}/validation/{project}.IB_replicates.tsv",
                 "results/{project}/validation/{project}.duplicate_sample_identity.tsv",
-                "results/{project}/validation/{project}.sample_name_errors.tsv"
+                "results/{project}/validation/{project}.sample_name_errors.tsv",
+                "results/{project}/validation/{project}.validation_passed.txt",
+                "results/{project}/validation/{project}.validation_asserted.txt"
             ],
             project=project)
          for project in PROJECTS],
