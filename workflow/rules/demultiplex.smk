@@ -308,20 +308,11 @@ rule validate_samples:
         duplicate_identity = (
             combined_valid
             .groupby(
-                [
-                    "blank_type",
-                    "core",
-                    "depth",
-                    "sampling_batch",
-                    "isolation_batch",
-                    "library_from_sample",
-                    "replicate"
-                ],
+                ["sample"],
                 dropna=False
             )
             .agg(
                 n_rows=("sample", "size"),
-                sample_names=("sample", lambda x: ";".join(sorted(set([str(v) for v in x])))),
                 sample_tags=("sample_tag", lambda x: ";".join(sorted(set([str(v) for v in x])))),
                 config_libraries=("library_config", lambda x: ";".join(sorted(set([str(v) for v in x])))),
                 barcode_files=("barcode_file", lambda x: ";".join(sorted(set([str(v) for v in x])))),
@@ -336,7 +327,6 @@ rule validate_samples:
         )
         duplicate_identity = (
             duplicate_identity[duplicate_identity["n_rows"] > 1]
-            .rename(columns={"sample_names": "sample"})
             .loc[:, ["sample", "n_rows", "config_libraries", "barcode_files", "demux_files", "sample_tags"]]
             .sort_values(["sample"])
         )
