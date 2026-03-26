@@ -177,6 +177,7 @@ rule validate_samples:
             barcode_file = config["projects"][wildcards.project]["libraries"][lib]["barcode_file"]
             df = pd.read_csv(barcode_file)
             df["library_config"] = lib
+            df["barcode_file"] = barcode_file
             rows.append(df)
 
         combined = pd.concat(rows, ignore_index=True)
@@ -321,12 +322,23 @@ rule validate_samples:
             .agg(
                 n_rows=("sample", "size"),
                 sample_names=("sample", lambda x: ";".join(sorted(set([str(v) for v in x])))),
-                sample_tags=("sample_tag", lambda x: ";".join(sorted(set([str(v) for v in x]))))
+                sample_tags=("sample_tag", lambda x: ";".join(sorted(set([str(v) for v in x])))),
+                config_libraries=("library_config", lambda x: ";".join(sorted(set([str(v) for v in x])))),
+                barcode_files=("barcode_file", lambda x: ";".join(sorted(set([str(v) for v in x])))),
+                demux_files=("library_config", lambda x: ";".join(sorted(set(
+                    [
+                        f"results/{wildcards.project}/sequences/{str(v)}.demux.fastq.gz"
+                        for v in x if pd.notna(v)
+                    ]
+                ))))
             )
             .reset_index()
         )
-        duplicate_identity = duplicate_identity[duplicate_identity["n_rows"] > 1].sort_values(
-            ["library_from_sample", "blank_type", "isolation_batch", "core", "depth", "replicate"]
+        duplicate_identity = (
+            duplicate_identity[duplicate_identity["n_rows"] > 1]
+            .rename(columns={"sample_names": "sample"})
+            .loc[:, ["sample", "n_rows", "config_libraries", "barcode_files", "demux_files", "sample_tags"]]
+            .sort_values(["sample"])
         )
         duplicate_identity.to_csv(output.duplicate_identity_table, sep="\t", index=False)
 
