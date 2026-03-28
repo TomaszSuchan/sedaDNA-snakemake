@@ -1,7 +1,8 @@
 # Snakemake workflow for OBI-tools metabarcoding pipeline
 
 # Load configuration
-configfile: "config/config.yaml"
+if not config:
+    configfile: "config/config.yaml"
 
 # Extract configuration variables
 PROJECTS = list(config["projects"].keys())
