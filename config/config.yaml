@@ -42,6 +42,11 @@ parameters: &global_params
   # Taxonomic assignment parameters for obitag:
   obitag:
     time: 60               # <INTEGER> maximum time (in minutes) to spend trying to classify a sequence (default 60).
+  # Post-classification table processing parameters:
+  process_motu:
+    time: 240              # <INTEGER> maximum time (in minutes) for process_motu.R (default 240).
+  cluster_taxa:
+    time: 120              # <INTEGER> maximum time (in minutes) for cluster_taxa.R (default 120).
   # final filters on OTU tables to flag low-abundance and low-replicability sequences:
   seq_filters:
     reads_within: 3        # <INTEGER> minimum number of reads within a sample to keep an OTU (default 3)

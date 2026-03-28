@@ -15,6 +15,7 @@ rule process_motu:
     conda:
         "../envs/r.yaml"
     resources:
+        runtime = lambda wildcards: config["projects"][wildcards.project]["parameters"]["process_motu"].get("time", 240),
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
@@ -42,6 +43,7 @@ rule cluster_taxa:
     conda:
         "../envs/r.yaml"
     resources:
+        runtime = lambda wildcards: config["projects"][wildcards.project]["parameters"]["cluster_taxa"].get("time", 120),
         mem_mb = config["parameters"]["max-cpu"] * config["parameters"]["mem-per-cpu"]
     shell:
         """
