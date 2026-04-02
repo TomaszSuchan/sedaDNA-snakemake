@@ -140,6 +140,7 @@ motu_summary <- motu_long %>%
   group_by(core, depth, sampling_batch, isolation_batch, library, blank_type, sequence_id) %>%
   summarise(
     replicate_reads = list(reads),
+    replicate_reads_filtered = list(ifelse(reads >= reads_within, reads, 0)),
     replicate_proportions = list(proportion),
     replicate_total_reads = list(total_reads_in_sample),
     total_reads = sum(reads[reads >= reads_within], na.rm = TRUE),
@@ -153,6 +154,7 @@ motu_summary <- motu_long %>%
   ) %>%
   mutate(
     replicate_summary = map_chr(replicate_reads, ~ paste(.x, collapse = ";")),
+    replicate_summary_filtered = map_chr(replicate_reads_filtered, ~ paste(.x, collapse = ";")),
     proportion_summary = map_chr(replicate_proportions, ~ paste(round(.x, 6), collapse = ";")),
     not_replicated = !(n_replicates_present >= reads_replicates & total_reads >= reads_across),
     # Handle NaN in weighted_avg_proportion
@@ -226,7 +228,7 @@ cat("Final table has", nrow(motu_flagged_classified), "rows.\n")
 # Save final table (drop replicate columns)
 # -------------------------------
 motu_final <- motu_flagged_classified %>%
-  select(-any_of(c("replicate_reads", "replicate_proportions", "replicate_total_reads")))
+  select(-any_of(c("replicate_reads", "replicate_reads_filtered", "replicate_proportions", "replicate_total_reads")))
 
 write_csv(motu_final, output_file)
 
