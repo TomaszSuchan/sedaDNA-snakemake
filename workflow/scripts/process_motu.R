@@ -9,16 +9,21 @@
 #
 #   1. per observation (one sequence in one PCR replicate):
 #        reads < reads_within  -> set to 0
-#   2. per sequence, over the whole dataset (all SAMPLE PCR replicates):
-#        total filtered reads   >= reads_across
-#        number of observations >= reads_replicates   (replicates with reads > 0)
-#   3. per sequence: kept if the identity threshold is met in ANY database
-#   4. per sample: sequences found in a matching blank are flagged and removed
+#   2. per sequence: kept if the identity threshold is met in ANY database
+#   3. per isolation x library unit: sequences found in a matching blank are
+#      set to 0 in that unit
 #        LB, PB -> same library;  IB -> same isolation batch;
 #        SB     -> same core + sampling batch (e.g. CSG-8_D1)
-#   5. per sample summary (MergeAndFilter "_summary"): totread, avgpread,
-#      sdpread, totrep, proprep, weightrep, with the replicate reads kept in a
-#      fixed replicate order (zeros included) so that later merging is exact.
+#   4. pooling: all isolations and libraries of one depth (bio_sample =
+#      core_depth) become one sample whose replicates are all their PCR
+#      replicates
+#   5. per bio_sample and sequence (filters act within the sample, so the
+#      result of one sample does not depend on the other samples):
+#        total filtered reads              >= reads_across
+#        replicates with filtered reads > 0 >= reads_replicates
+#   6. summaries (MergeAndFilter "_summary"): totread, avgpread, sdpread,
+#      totrep, proprep, weightrep, with the replicate reads kept in a fixed
+#      replicate order (zeros included) so that later merging is exact.
 #
 # One run per project: the filtering does not depend on the database, so all
 # databases get identical filtering; classification columns are kept per
@@ -38,7 +43,7 @@
 #                                 totals and replication of the top-10 sequences
 #   <prefix>-sequences.tsv        one row per sequence: dataset totals, filter
 #                                 results and the assignment from each database
-#   <prefix>-sample_summary.tsv   one row per sample (isolation x library) x retained sequence
+#   <prefix>-sample_summary.tsv   one row per unit (isolation x library, blanks included) x sequence
 #   <prefix>-bio_sample_summary.tsv  one row per sediment sample (core_depth, all its
 #                                 isolations and libraries pooled) x sequence
 #   <prefix>-blank_report.tsv     sequences found in blanks and the samples they
@@ -86,8 +91,8 @@ cat("MOTU table:       ", motu_file, "\n")
 cat("Demux stats:      ", demux_stats_json, "\n")
 cat("Databases:        ", paste(names(db_files), collapse = ", "), "\n")
 cat("reads_within:     ", reads_within, " (min reads per observation)\n")
-cat("reads_across:     ", reads_across, " (min filtered reads per sequence, whole dataset)\n")
-cat("reads_replicates: ", reads_replicates, " (min observations per sequence, whole dataset)\n")
+cat("reads_across:     ", reads_across, " (min filtered reads per sequence within a bio_sample)\n")
+cat("reads_replicates: ", reads_replicates, " (min replicates with reads per sequence within a bio_sample)\n")
 cat("min_identity:     ", min_identity, " (in at least one database)\n")
 cat("Output prefix:    ", out_prefix, "\n")
 cat("------------------------------------------------------------\n")
@@ -193,7 +198,7 @@ obs <- obs %>%
   mutate(reads_f = if_else(reads >= reads_within, reads, 0))   # step 1
 
 # ------------------------------------------------------------------------------
-# 3. Dataset-level filters per sequence (samples only; blanks do not give support)
+# 3. Dataset totals per sequence (information only)
 # ------------------------------------------------------------------------------
 seqs <- obs %>%
   group_by(sequence_id) %>%
@@ -203,10 +208,7 @@ seqs <- obs %>%
     obs_samples        = sum(reads_f[blank_type == "SAMPLE"] > 0),
     reads_blanks       = sum(reads[blank_type != "SAMPLE"]),
     .groups = "drop"
-  ) %>%
-  mutate(pass_reads_across     = reads_samples_filt >= reads_across,
-         pass_reads_replicates = obs_samples >= reads_replicates,
-         pass_technical        = pass_reads_across & pass_reads_replicates)
+  )
 
 # ------------------------------------------------------------------------------
 # 4. Classifications of all databases; identity filter = any database
@@ -241,14 +243,11 @@ seqs <- seqs %>%
     best_bestid   = if_else(is.finite(best_bestid), best_bestid, NA_real_),
     best_db       = names(db_files)[best_idx],
     best_taxon    = taxon_mat[cbind(seq_along(best_idx), best_idx)],
-    pass_identity = !is.na(best_bestid) & best_bestid >= min_identity,
-    retained      = pass_technical & pass_identity
+    pass_identity = !is.na(best_bestid) & best_bestid >= min_identity
   )
-retained_ids <- seqs$sequence_id[seqs$retained]
-cat("Sequences: ", nrow(seqs), " | pass reads_across: ", sum(seqs$pass_reads_across),
-    " | pass reads_replicates: ", sum(seqs$pass_reads_replicates),
-    " | pass both: ", sum(seqs$pass_technical),
-    " | + identity in any db: ", length(retained_ids), "\n", sep = "")
+retained_ids <- seqs$sequence_id[seqs$pass_identity]
+cat("Sequences: ", nrow(seqs), " | identity >= ", min_identity, " in any db: ",
+    length(retained_ids), "\n", sep = "")
 
 # ------------------------------------------------------------------------------
 # 5. Blank flags: presence (reads >= reads_within) in a matching blank
@@ -301,7 +300,34 @@ for (bt in names(blank_keys)) {
 }
 
 # ------------------------------------------------------------------------------
-# 6. Per-sample summary with replicates in fixed order (zeros included)
+# 5b. Filters within the sediment sample (bio_sample = core_depth): reads and
+# replicates of a sequence are counted over all PCR replicates of all
+# isolations / libraries of the depth, after blank removal in each unit
+# ------------------------------------------------------------------------------
+unit_bio <- sample_meta %>% filter(blank_type == "SAMPLE") %>% select(sample_id, bio_sample)
+kept_present <- present %>% filter(!remove_blank) %>% inner_join(unit_bio, by = "sample_id")
+bio_pass <- obs %>%
+  semi_join(kept_present, by = c("sample_id", "sequence_id")) %>%
+  inner_join(unit_bio, by = "sample_id") %>%
+  group_by(bio_sample, sequence_id) %>%
+  summarise(bio_reads = sum(reads_f), bio_reps = sum(reads_f > 0), .groups = "drop") %>%
+  mutate(pass_reads_across     = bio_reads >= reads_across,
+         pass_reads_replicates = bio_reps >= reads_replicates,
+         pass_sample_filters   = pass_reads_across & pass_reads_replicates)
+cat("bio_sample x sequence: ", nrow(bio_pass), " | pass reads_across: ", sum(bio_pass$pass_reads_across),
+    " | pass reads_replicates: ", sum(bio_pass$pass_reads_replicates),
+    " | pass both: ", sum(bio_pass$pass_sample_filters), "\n", sep = "")
+
+# unit rows in the final data: samples that pass, plus all rows of the blanks
+final_units <- bind_rows(
+  kept_present %>% inner_join(bio_pass %>% filter(pass_sample_filters), by = c("bio_sample", "sequence_id")) %>%
+    select(sample_id, sequence_id),
+  present %>% anti_join(unit_bio, by = "sample_id") %>% select(sample_id, sequence_id)
+)
+
+# ------------------------------------------------------------------------------
+# 6. Per-unit summary (isolation x library, blanks included) with replicates in
+# fixed order (zeros included); rows failing the sample filters are kept for QC
 # ------------------------------------------------------------------------------
 reps <- pcrs %>% select(sample_id, pcr_id, replicate)
 grid <- present %>%
@@ -310,8 +336,8 @@ grid <- present %>%
   left_join(obs %>% select(pcr_id, sequence_id, reads_f), by = c("pcr_id", "sequence_id")) %>%
   mutate(reads_f = coalesce(reads_f, 0))
 
-# retained reads per replicate (denominator of the proportions, as in MergeAndFilter)
-rep_totals <- grid %>% filter(!remove_blank) %>%
+# reads in the final data per replicate (denominator of the proportions, as in MergeAndFilter)
+rep_totals <- grid %>% semi_join(final_units, by = c("sample_id", "sequence_id")) %>%
   group_by(pcr_id) %>% summarise(rep_total = sum(reads_f), .groups = "drop")
 rep_weights <- reps %>%
   left_join(rep_totals, by = "pcr_id") %>%
@@ -344,8 +370,7 @@ summary_tbl <- grid %>%
 # MergeAndFilter: use the weighted proportion only when the sample is well
 # replicated (mean replication of its barcodes >= 0.33) and has >= 10 barcodes
 weighting <- summary_tbl %>%
-  inner_join(present %>% filter(!remove_blank) %>% select(sample_id, sequence_id),
-             by = c("sample_id", "sequence_id")) %>%
+  semi_join(final_units, by = c("sample_id", "sequence_id")) %>%
   group_by(sample_id) %>%
   summarise(mean_proprep = mean(proprep), n_barcodes = n(), .groups = "drop") %>%
   mutate(use_weighting = mean_proprep >= 0.33 & n_barcodes >= 10)
@@ -357,6 +382,8 @@ summary_tbl <- summary_tbl %>%
   select(-weightrep_raw) %>%
   left_join(present, by = c("sample_id", "sequence_id")) %>%
   left_join(sample_meta, by = "sample_id") %>%
+  left_join(bio_pass %>% select(bio_sample, sequence_id, pass_sample_filters),
+            by = c("bio_sample", "sequence_id")) %>%
   mutate(prop_of_raw = if_else(raw_reads_sample > 0, totread / raw_reads_sample, NA_real_)) %>%
   left_join(seqs %>% select(sequence_id, best_bestid, best_db, best_taxon,
                             starts_with("bestid_"), starts_with("taxid_"),
@@ -366,7 +393,7 @@ summary_tbl <- summary_tbl %>%
          library, sequence_id, n_reps, replicates, replicate_reads, replicate_totals,
          totread, avgpread, sdpread, totrep, nrep, proprep, weightrep, use_weighting,
          prop_of_raw, in_LB, in_PB, in_IB, in_SB, n_blank_flags, remove_blank,
-         everything(), -raw_reads_sample) %>%
+         pass_sample_filters, everything(), -raw_reads_sample) %>%
   arrange(sample_id, desc(totread))
 
 write_tsv(summary_tbl, out("sample_summary.tsv"))
@@ -393,15 +420,12 @@ pool_reps <- pcrs %>%
   ungroup() %>%
   arrange(bio_sample, sample_id, replicate)
 
-kept_present <- present %>%
-  filter(!remove_blank) %>%
-  inner_join(sample_meta %>% filter(blank_type == "SAMPLE") %>% select(sample_id, bio_sample),
-             by = "sample_id")
+final_bio <- final_units %>% inner_join(unit_bio, by = "sample_id")
 
-pool_grid <- kept_present %>%
+pool_grid <- final_bio %>%
   distinct(bio_sample, sequence_id) %>%
   inner_join(pool_reps, by = "bio_sample", relationship = "many-to-many") %>%
-  left_join(kept_present %>% transmute(sample_id, sequence_id, kept = TRUE),
+  left_join(final_bio %>% transmute(sample_id, sequence_id, kept = TRUE),
             by = c("sample_id", "sequence_id")) %>%
   left_join(obs %>% select(pcr_id, sequence_id, reads_f), by = c("pcr_id", "sequence_id")) %>%
   mutate(reads_f = if_else(coalesce(kept, FALSE), coalesce(reads_f, 0), 0),
@@ -479,25 +503,29 @@ write_tsv(seqs %>% arrange(desc(reads_samples)), out("sequences.tsv"))
 # ------------------------------------------------------------------------------
 # 8. Per-PCR read accounting (MergeAndFilter "_samplestat")
 # ------------------------------------------------------------------------------
-kept_rows <- present %>% filter(!remove_blank) %>% select(sample_id, sequence_id)
+kept_rows <- final_units
+not_blanked <- present %>% filter(!remove_blank) %>% select(sample_id, sequence_id)
 pcr_acc <- obs %>%
-  left_join(seqs %>% select(sequence_id, pass_technical, retained), by = "sequence_id") %>%
+  left_join(seqs %>% select(sequence_id, retained = pass_identity), by = "sequence_id") %>%
+  left_join(not_blanked %>% mutate(nb = TRUE), by = c("sample_id", "sequence_id")) %>%
   left_join(kept_rows %>% mutate(kept = TRUE), by = c("sample_id", "sequence_id")) %>%
-  mutate(kept = coalesce(kept, FALSE)) %>%
+  mutate(nb = coalesce(nb, FALSE), kept = coalesce(kept, FALSE)) %>%
   group_by(pcr_id) %>%
   summarise(reads_motu        = sum(reads),
-            reads_technical   = sum(reads_f[pass_technical]),
+            reads_technical   = sum(reads_f),
             reads_identity    = sum(reads_f[retained]),
-            reads_final       = sum(reads_f[retained & kept]),
-            n_sequences_final = sum(retained & kept & reads_f > 0),
+            reads_blanks      = sum(reads_f[retained & nb]),
+            reads_final       = sum(reads_f[kept]),
+            n_sequences_final = sum(kept & reads_f > 0),
             .groups = "drop")
 pcr_tbl <- pcrs %>%
   left_join(pcr_acc, by = "pcr_id") %>%
-  mutate(across(c(reads_motu, reads_technical, reads_identity, reads_final, n_sequences_final),
+  mutate(across(c(reads_motu, reads_technical, reads_identity, reads_blanks, reads_final, n_sequences_final),
                 ~ coalesce(.x, 0)),
          prop_removed_technical = if_else(raw_reads > 0, (raw_reads - reads_technical) / raw_reads, NA_real_),
          prop_removed_identity  = if_else(raw_reads > 0, (reads_technical - reads_identity) / raw_reads, NA_real_),
-         prop_removed_blank     = if_else(raw_reads > 0, (reads_identity - reads_final) / raw_reads, NA_real_),
+         prop_removed_blank     = if_else(raw_reads > 0, (reads_identity - reads_blanks) / raw_reads, NA_real_),
+         prop_removed_sample_filters = if_else(raw_reads > 0, (reads_blanks - reads_final) / raw_reads, NA_real_),
          prop_retained          = if_else(raw_reads > 0, reads_final / raw_reads, NA_real_)) %>%
   arrange(sample_id, replicate)
 write_tsv(pcr_tbl, out("pcrs.tsv"))
@@ -576,7 +604,8 @@ write_json(list(
   reads_within = reads_within, reads_across = reads_across,
   reads_replicates = reads_replicates, min_identity = min_identity,
   n_pcrs = nrow(pcrs), n_samples = nrow(sample_meta),
-  n_sequences = nrow(seqs), n_sequences_retained = length(retained_ids)
+  n_sequences = nrow(seqs), n_sequences_identity = length(retained_ids),
+  n_bio_sample_sequence_pass = sum(bio_pass$pass_sample_filters)
 ), out("filter_params.json"), auto_unbox = TRUE, pretty = TRUE)
 
 cat("Done.\n")

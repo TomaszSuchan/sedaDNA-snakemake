@@ -51,8 +51,8 @@ parameters: &global_params
   # (MergeAndFilter design, see README section 4)
   seq_filters:
     reads_within: 3        # <INTEGER> minimum reads of a sequence in one PCR replicate; lower counts are set to 0 (default 3)
-    reads_across: 10       # <INTEGER> minimum total reads of a sequence summed over all sample PCR replicates of the project (default 10)
-    reads_replicates: 3    # <INTEGER> minimum number of sample PCR replicates (whole project) in which a sequence occurs (default 3)
+    reads_across: 10       # <INTEGER> minimum total reads of a sequence within a sediment sample (core_depth: all its isolations, libraries and PCR replicates) (default 10)
+    reads_replicates: 3    # <INTEGER> minimum number of PCR replicates of that sediment sample in which the sequence has >= reads_within reads (default 3)
   # final filters for taxonomic assignments to remove low confidence assignments:
   tax_filters:
     min_identity: 1     # <FLOAT64> minimum identity: a sequence is kept if it is reached in at least one database; each database's taxon table uses only its own assignments that reach it (default 1.0)

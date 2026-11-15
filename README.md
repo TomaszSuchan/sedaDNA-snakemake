@@ -67,8 +67,8 @@ parameters: &global_params
   # Final filters on OTU tables to flag low-abundance and low-replicability sequences:
   seq_filters:
     reads_within: 3        # <INTEGER> minimum reads of a sequence in one PCR replicate; lower counts are set to 0 (default 3)
-    reads_across: 10       # <INTEGER> minimum total reads of a sequence over all sample PCR replicates of the project (default 10)
-    reads_replicates: 3    # <INTEGER> minimum number of sample PCR replicates (whole project) in which a sequence occurs (default 3)
+    reads_across: 10       # <INTEGER> minimum total reads of a sequence within a sediment sample (core_depth: all its isolations, libraries and PCR replicates) (default 10)
+    reads_replicates: 3    # <INTEGER> minimum number of PCR replicates of that sediment sample in which the sequence has >= reads_within reads (default 3)
   
   # Final filters for taxonomic assignments to remove low confidence assignments:
   tax_filters:
@@ -284,16 +284,18 @@ snakemake --executor slurm \
 
 ### Overview
 
-`process_motu.R` merges the MOTU table with the classifications from **all** reference databases and filters it. The design follows MergeAndFilter (Lammers, https://github.com/Y-Lammers/MergeAndFilter):
+`process_motu.R` merges the MOTU table with the classifications from **all** reference databases and filters it. The design follows MergeAndFilter (Lammers, https://github.com/Y-Lammers/MergeAndFilter), with the read and replicate thresholds applied within each sediment sample:
 
 1. per observation (one sequence in one PCR replicate): counts below `reads_within` are set to 0;
-2. per sequence, over the whole project: the sequence must have at least `reads_across` filtered reads and occur in at least `reads_replicates` sample PCR replicates;
-3. per sequence: it is kept if its identity reaches `min_identity` in at least one database;
-4. per sample: sequences found in a matching blank are flagged and removed;
-5. per sample: replicate statistics (`totread`, `avgpread`, `sdpread`, `totrep`, `proprep`, `weightrep`);
-6. pooling: all isolations and libraries of one sediment sample (`bio_sample` = `<core>_<depth>`) become one sample whose replicates are all their PCR replicates.
+2. per sequence: it is kept if its identity reaches `min_identity` in at least one database;
+3. per isolation × library unit: sequences found in a matching blank are set to 0 in that unit;
+4. pooling: all isolations and libraries of one sediment sample (`bio_sample` = `<core>_<depth>`) become one sample whose replicates are all their PCR replicates;
+5. per sediment sample and sequence: at least `reads_across` filtered reads and at least `reads_replicates` replicates with reads;
+6. replicate statistics (`totread`, `avgpread`, `sdpread`, `totrep`, `proprep`, `weightrep`).
 
-The script runs **once per project**, not once per database. The read and replicate filters do not depend on the database, so every database gets identical filtering, and the classification of each database is kept in its own columns (`bestid_<db>`, `taxid_<db>`, `rank_<db>`, `taxon_<db>`). The MOTU tables of all databases contain the same counts and sequence ids, so the first database's MOTU table is used.
+Because every threshold acts within one sediment sample, the result of a sample does not depend on the other samples of the run (blanks act on the samples of their library, isolation batch or sampling session).
+
+The script runs **once per project**, not once per database. The filters do not depend on the database, so every database gets identical filtering, and the classification of each database is kept in its own columns (`bestid_<db>`, `taxid_<db>`, `rank_<db>`, `taxon_<db>`). The MOTU tables of all databases contain the same counts and sequence ids, so the first database's MOTU table is used.
 
 ### Sample Name Parsing
 
@@ -318,23 +320,23 @@ The list of PCR replicates comes from the demultiplexing statistics, so a replic
 | Parameter | Default | Applies to | Meaning |
 |-----------|---------|------------|---------|
 | `reads_within` | 3 | one observation | counts below this in a PCR replicate are set to 0 |
-| `reads_across` | 10 | one sequence, whole project | minimum sum of filtered reads over all sample PCR replicates |
-| `reads_replicates` | 3 | one sequence, whole project | minimum number of sample PCR replicates with filtered reads > 0 |
+| `reads_across` | 10 | one sequence in one sediment sample | minimum sum of filtered reads over all PCR replicates of the sample (all its isolations and libraries) |
+| `reads_replicates` | 3 | one sequence in one sediment sample | minimum number of those PCR replicates with filtered reads > 0 |
 | `min_identity` | 1.0 | one sequence | kept if reached in at least one database |
 
-Blanks do not count towards `reads_across` and `reads_replicates`.
+The thresholds are applied after blank removal, so replicates of a unit where a blank removed the sequence count as 0.
 
-**Example** (`reads_within = 3`, `reads_across = 10`, `reads_replicates = 3`):
+**Example** (`reads_within = 3`, `reads_across = 10`, `reads_replicates = 3`; sample ZSG-3_025 with 2 isolations × 4 replicates):
 ```
-Sequence A: sample 1 reps 5, 2, 6, 4 reads; sample 2 reps 0, 3, 0, 0 reads
-  -> after reads_within: 5, 0, 6, 4 and 0, 3, 0, 0
-  -> total 18 reads (>= 10), 4 observations (>= 3): KEEP
-Sequence B: sample 1 reps 4, 2, 3, 1 reads
-  -> after reads_within: 4, 0, 3, 0
-  -> total 7 reads (< 10), 2 observations (< 3): REMOVE
+Sequence A: isolation 1 reps 5, 2, 6, 4; isolation 2 reps 0, 3, 0, 0
+  -> after reads_within: 5, 0, 6, 4, 0, 3, 0, 0
+  -> 18 reads (>= 10), 4 replicates (>= 3): KEEP in ZSG-3_025
+Sequence B: isolation 1 reps 4, 2, 3, 1; isolation 2 none
+  -> after reads_within: 4, 0, 3, 0, 0, 0, 0, 0
+  -> 7 reads (< 10), 2 replicates (< 3): REMOVE from ZSG-3_025
 ```
 
-Replication within a single sample is not used as a filter; it is reported (`totrep`, `proprep`, `weightrep`) so that it can be applied later.
+`sample_summary` keeps the unit rows that fail (`pass_sample_filters = FALSE`) for checking; `bio_sample_summary` contains only the sequences that pass.
 
 ### Blank Contamination
 
@@ -376,8 +378,8 @@ All in `results/{project}/tables/`:
 |------|---------|
 | `{project}-sample_summary.tsv` | one row per sample (isolation × library unit) × retained sequence, blanks included: sample fields, replicate statistics, blank flags, `remove_blank`, assignment of each database and the best one (`best_bestid`, `best_db`, `best_taxon`) |
 | `{project}-bio_sample_summary.tsv` | one row per sediment sample (`bio_sample`, all isolations and libraries pooled) × sequence: pooled replicate statistics, `n_units`, `units_removed_by_blank`, `removed_by`, assignments; input of `cluster_taxa.R` |
-| `{project}-sequences.tsv` | one row per sequence: reads in samples and blanks, observations, `pass_reads_across`, `pass_reads_replicates`, `pass_identity`, `retained`, assignment of each database |
-| `{project}-pcrs.tsv` | one row per PCR replicate: parsed name, raw reads, reads after each step and the share of raw reads removed by the technical filters (including OBITools), identity, blanks, and retained |
+| `{project}-sequences.tsv` | one row per sequence: reads in samples and blanks, observations, `pass_identity`, assignment of each database |
+| `{project}-pcrs.tsv` | one row per PCR replicate: parsed name, raw reads, reads after each step and the share of raw reads removed by the technical filters (including OBITools), identity, blanks, the sample thresholds, and retained |
 | `{project}-samples.tsv` | one row per sample: reads, share retained, number of sequences, mean replication of the 10 most abundant sequences before (`avg_rep`) and after (`avg_filt_rep`) filtering, and their `overlap` |
 | `{project}-blank_report.tsv` | per blank and sequence: reads in the blank, samples flagged, samples where this blank was the only reason, reads removed |
 | `{project}-replicates.tsv.gz` | every observation (`pcr_id`, `sequence_id`, `reads`), unfiltered and including blanks, so filters can be re-applied without re-running the pipeline |
@@ -437,12 +439,12 @@ Clean unique sequences
 Classified sequences
     ↓ [process_motu.R: once per project, MergeAndFilter design]
 ├─ reads_within: counts < 3 in a replicate set to 0
-├─ reads_across: ≥ 10 reads per sequence over all sample replicates
-├─ reads_replicates: ≥ 3 sample replicates per sequence
 ├─ min_identity: reached in at least one database
-├─ blanks: flag/remove per sample (LB, PB by library; IB by isolation; SB by core + Dn)
-├─ per-sample replicate statistics
-└─ pooling of isolations/libraries to bio_sample (core_depth)
+├─ blanks: remove per isolation × library unit (LB, PB by library; IB by isolation; SB by core + Dn)
+├─ pooling of isolations/libraries to bio_sample (core_depth)
+├─ reads_across: ≥ 10 reads per sequence within the bio_sample
+├─ reads_replicates: ≥ 3 replicates per sequence within the bio_sample
+└─ replicate statistics
     ↓ [cluster_taxa.R: per database]
 ├─ min_identity in this database
 ├─ ranks at family level or below
