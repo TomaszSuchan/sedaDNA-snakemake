@@ -48,13 +48,14 @@ parameters: &global_params
   cluster_taxa:
     time: 120              # <INTEGER> maximum time (in minutes) for cluster_taxa.R (default 120).
   # final filters on OTU tables to flag low-abundance and low-replicability sequences:
+  # (MergeAndFilter design, see README section 4)
   seq_filters:
-    reads_within: 3        # <INTEGER> minimum number of reads within a sample to keep an OTU (default 3)
-    reads_across: 10       # <INTEGER> minimum number of reads across all samples to keep an OTU (default 10)
-    reads_replicates: 3    # <INTEGER> minimum number of replicates to keep an OTU (default 3)
+    reads_within: 3        # <INTEGER> minimum reads of a sequence in one PCR replicate; lower counts are set to 0 (default 3)
+    reads_across: 10       # <INTEGER> minimum total reads of a sequence summed over all sample PCR replicates of the project (default 10)
+    reads_replicates: 3    # <INTEGER> minimum number of sample PCR replicates (whole project) in which a sequence occurs (default 3)
   # final filters for taxonomic assignments to remove low confidence assignments:
   tax_filters:
-    min_identity: 1     # <FLOAT64> minimum identity to keep a sequence assignment (default 1.0)
+    min_identity: 1     # <FLOAT64> minimum identity: a sequence is kept if it is reached in at least one database; each database's taxon table uses only its own assignments that reach it (default 1.0)
 
 ## Projects configuration
 # Each project can have multiple reference databases and multiple libraries.

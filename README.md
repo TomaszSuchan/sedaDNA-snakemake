@@ -66,13 +66,13 @@ parameters: &global_params
   
   # Final filters on OTU tables to flag low-abundance and low-replicability sequences:
   seq_filters:
-    reads_within: 3        # <INTEGER> minimum number of reads within a single replicate to count that replicate (default 3)
-    reads_across: 10       # <INTEGER> minimum total number of reads across all valid replicates (default 10)
-    reads_replicates: 3    # <INTEGER> minimum number of replicates that must meet reads_within threshold (default 3)
+    reads_within: 3        # <INTEGER> minimum reads of a sequence in one PCR replicate; lower counts are set to 0 (default 3)
+    reads_across: 10       # <INTEGER> minimum total reads of a sequence over all sample PCR replicates of the project (default 10)
+    reads_replicates: 3    # <INTEGER> minimum number of sample PCR replicates (whole project) in which a sequence occurs (default 3)
   
   # Final filters for taxonomic assignments to remove low confidence assignments:
   tax_filters:
-    min_identity: 0.97     # <FLOAT64> minimum taxonomic match identity to keep a sequence assignment (0-1, default 0.97)
+    min_identity: 0.97     # <FLOAT64> minimum identity, reached in at least one database to keep a sequence; each database's taxon table uses only its own assignments that reach it (0-1)
   
   # Plotting parameters:
   plotting:
@@ -284,141 +284,105 @@ snakemake --executor slurm \
 
 ### Overview
 
-The `process_motu.R` script applies multi-stage quality filtering, integrating read count statistics to calculate weighted proportions and identify contamination from blank controls.
+`process_motu.R` merges the MOTU table with the classifications from **all** reference databases and filters it. The design follows MergeAndFilter (Lammers, https://github.com/Y-Lammers/MergeAndFilter):
+
+1. per observation (one sequence in one PCR replicate): counts below `reads_within` are set to 0;
+2. per sequence, over the whole project: the sequence must have at least `reads_across` filtered reads and occur in at least `reads_replicates` sample PCR replicates;
+3. per sequence: it is kept if its identity reaches `min_identity` in at least one database;
+4. per sample: sequences found in a matching blank are flagged and removed;
+5. per sample: replicate statistics (`totread`, `avgpread`, `sdpread`, `totrep`, `proprep`, `weightrep`);
+6. pooling: all isolations and libraries of one sediment sample (`bio_sample` = `<core>_<depth>`) become one sample whose replicates are all their PCR replicates.
+
+The script runs **once per project**, not once per database. The read and replicate filters do not depend on the database, so every database gets identical filtering, and the classification of each database is kept in its own columns (`bestid_<db>`, `taxid_<db>`, `rank_<db>`, `taxon_<db>`). The MOTU tables of all databases contain the same counts and sequence ids, so the first database's MOTU table is used.
 
 ### Sample Name Parsing
 
-Each sample ID is automatically parsed into components:
+PCR names are parsed with one explicit pattern per type (the same formats as `validate_samples`). A name that matches none of them stops the run and is listed in `{project}-unparsed_pcr_names.txt`.
+
+| Type | Format | Example | Blank key |
+|------|--------|---------|-----------|
+| Sample | `<core>_<depth>_<Dn>_<isolation>_<library>_<rep>` | `ZSG-3_025_D1_250129_ZSG3MET1_1` | – |
+| SB | `<core>_SB_<Dn>_<isolation>_<library>_<rep>` | `ZSG-3_SB_D1_250129_ZSG3MET1_1` | `sampling_batch` = `<core>_<Dn>` |
+| IB | `IB_<isolation>_<library>_<rep>` | `IB_250129_ZSG3MET1_1` | `isolation_batch` |
+| LB | `LB_<library>_<rep>` | `LB_ZSG3MET1_1` | `library` |
+| PB | `PB_<library>_<rep>` | `PB_ZSG3MET1_1` | `library` |
+
+A *sample* is all PCR replicates sharing the name without `_<rep>`. `bio_sample` (`<core>_<depth>`, e.g. `ZSG-3_025`) is the sediment sample, one depth of one core; it can occur in several isolations or libraries, so it is the column to pool or plot by. `lab_sample_id` (`<core>_<depth>_<Dn>`, e.g. `ZSG-3_025_D1`) is the sample as named in the lab database.
+
+The list of PCR replicates comes from the demultiplexing statistics, so a replicate without any reads still counts (as zeros) in `nrep`, `proprep` and `avgpread`.
+
+### Filters
+
+**Parameters** (from `config["parameters"]["seq_filters"]` and `["tax_filters"]`):
+
+| Parameter | Default | Applies to | Meaning |
+|-----------|---------|------------|---------|
+| `reads_within` | 3 | one observation | counts below this in a PCR replicate are set to 0 |
+| `reads_across` | 10 | one sequence, whole project | minimum sum of filtered reads over all sample PCR replicates |
+| `reads_replicates` | 3 | one sequence, whole project | minimum number of sample PCR replicates with filtered reads > 0 |
+| `min_identity` | 1.0 | one sequence | kept if reached in at least one database |
+
+Blanks do not count towards `reads_across` and `reads_replicates`.
+
+**Example** (`reads_within = 3`, `reads_across = 10`, `reads_replicates = 3`):
 ```
-ZSG-3_025_D1_250129_ZSG3MET1_1
-  ↓
-core: ZSG-3
-depth: 025_D1
-sampling_batch: ZSG-3_250129
-isolation_batch: 250129
-library: ZSG3MET1
-replicate: 1
-blank_type: SAMPLE
-```
-
-**Blank type detection:**
-- **LB**: Library blank (isolation_batch starts with "LB")
-- **PB**: PCR blank (isolation_batch starts with "PB")
-- **IB**: Isolation blank (sampling_batch starts with "IB")
-- **SB**: Sampling blank (depth starts with "SB")
-- **SAMPLE**: Environmental samples (everything else)
-
-### Proportional Abundance Calculation
-
-For each sequence in each replicate:
-```
-proportion = reads_in_replicate / total_reads_in_sample
-```
-
-This accounts for sequencing depth variation between replicates, preventing samples with more reads from artificially dominating the analysis.
-
-### Weighted Average Proportion
-
-A **weighted average proportion** is calculated across replicates:
-```
-weighted_avg_proportion = Σ(proportion_i × total_reads_i) / Σ(total_reads_i)
-```
-
-This gives appropriate weight to replicates with higher sequencing depth (MergeAndFilter approach).
-
-### Read Count Filtering
-
-**Parameters** (from `config["parameters"]["seq_filters"]`):
-
-1. **reads_within** `<INTEGER>` (default: 3):
-   - Minimum number of reads within a single replicate to count that replicate
-   - Filters out low-abundance observations within each replicate
-   - Only replicates meeting this threshold contribute to total_reads
-
-2. **reads_across** `<INTEGER>` (default: 10):
-   - Minimum total number of reads across all valid replicates
-   - Ensures sequences have substantial representation overall
-   - Applied after within-replicate filtering
-
-3. **reads_replicates** `<INTEGER>` (default: 3):
-   - Minimum number of replicates that must meet reads_within threshold
-   - Ensures reproducibility across technical replicates
-   - Adjust if using different number of replicates (e.g., 4)
-
-**Example with reads_within=3, reads_replicates=3, reads_across=10:**
-```
-Sequence A in Sample 1:
-  Rep1: 5 reads, Rep2: 2 reads, Rep3: 6 reads, Rep4: 4 reads
-  → Only Rep1, Rep3, Rep4 counted (≥3 reads each)
-  → total_reads = 15, n_replicates_present = 3
-  → KEEP (3 reps ≥ threshold, total ≥ 10)
-
-Sequence B in Sample 2:
-  Rep1: 4 reads, Rep2: 2 reads, Rep3: 3 reads, Rep4: 1 read
-  → Only Rep1, Rep3 counted (≥3 reads each)
-  → total_reads = 7, n_replicates_present = 2
-  → REMOVE (only 2 reps ≥ threshold, need 3)
+Sequence A: sample 1 reps 5, 2, 6, 4 reads; sample 2 reps 0, 3, 0, 0 reads
+  -> after reads_within: 5, 0, 6, 4 and 0, 3, 0, 0
+  -> total 18 reads (>= 10), 4 observations (>= 3): KEEP
+Sequence B: sample 1 reps 4, 2, 3, 1 reads
+  -> after reads_within: 4, 0, 3, 0
+  -> total 7 reads (< 10), 2 observations (< 3): REMOVE
 ```
 
-### Blank Contamination Flagging
+Replication within a single sample is not used as a filter; it is reported (`totrep`, `proprep`, `weightrep`) so that it can be applied later.
 
-Sequences are flagged if present in any blank control:
+### Blank Contamination
 
-| Flag | Description | 
-|------|-------------|
-| `in_LB` | Library blank contamination |
-| `in_PB` | PCR blank contamination |
-| `in_IB` | Isolation blank contamination |
-| `in_SB` | Sampling blank contamination |
+After the filters above, a sequence is flagged in a sample when it has reads (≥ `reads_within`) in a blank with the same key:
 
-**Removal criteria:**
-```
-remove = not_replicated OR in_LB OR in_PB OR in_IB OR in_SB
-```
+| Flag | Blank | Matched by |
+|------|-------|------------|
+| `in_LB` | library blank | library |
+| `in_PB` | PCR blank | library |
+| `in_IB` | isolation blank | isolation batch |
+| `in_SB` | sampling blank | core + sampling batch (`<core>_<Dn>`) |
 
-A sequence is flagged for removal if **ANY** condition is met:
-- Fails replication requirements
-- Appears in any blank control
+`remove_blank` is TRUE when any flag is set. Blanks are not filtered against themselves. The log warns about blanks whose key matches no sample (usually a naming problem).
+
+### Replicate Statistics (MergeAndFilter `_summary`)
+
+For each sample and retained sequence, the replicate reads are stored in a fixed replicate order with zeros (`replicates` = `1;2;3;4`, `replicate_reads` = `50;0;40;0`), together with the retained reads of each replicate (`replicate_totals`, the denominator of the proportions). Because the order is fixed, sequences can be added replicate by replicate later (see section 5).
+
+| Column | Meaning |
+|--------|---------|
+| `totread` | sum of the filtered reads over the replicates |
+| `avgpread`, `sdpread` | mean and SD over the replicates of the proportion of the replicate's retained reads (replicates without the sequence count as 0) |
+| `totrep`, `nrep` | replicates with the sequence, replicates of the sample |
+| `proprep` | `totrep / nrep` |
+| `weightrep` | sum of the weights of the replicates with the sequence; a replicate's weight is its share of the sample's retained reads. As in MergeAndFilter it is used only when the sample's mean `proprep` ≥ 0.33 and it has ≥ 10 sequences (`use_weighting`); otherwise `weightrep = proprep` |
+| `prop_of_raw` | `totread` / raw demultiplexed reads of the sample |
+
+### Pooling to the Sediment Sample
+
+Re-isolations and re-amplifications of one depth end up as one sample. All PCR replicates of all isolation × library units of a `bio_sample` become its replicates (labelled `<Dn>_<isolation>_<library>_<rep>`), and the statistics above are recomputed over them.
+
+Blank removal is done **before** pooling, at the level of each blank: a sequence found in the PCR blank of library A is set to 0 in the replicates of library A only, and keeps its reads from library B. In the same way SB acts only on the samples of its sampling session (`<core>_<Dn>`), IB only on its isolation batch, LB only on its library. `units_removed_by_blank` and `removed_by` show how many units lost the sequence and to which blank types.
 
 ### Output Files
 
-**Main table:** `results/{project}/tables/{project}-{db}-classification_table.csv`
+All in `results/{project}/tables/`:
 
-**Key columns:**
-
-| Column | Description |
-|--------|-------------|
-| `core`, `depth` | Sample location identifiers |
-| `sampling_batch` | Sampling batch ID |
-| `isolation_batch` | Isolation batch ID |
-| `library` | Library ID |
-| `replicate` | Technical replicate of the sample within the library |
-| `blank_type` | Sample type (SAMPLE/LB/PB/IB/SB) |
-| `sequence_id` | Unique sequence ID (e.g., seq0001) |
-| `total_reads` | Sum of reads from valid replicates after within-replicate filtering |
-| `n_replicates_present` | Number of replicates meeting the reads_within threshold for this sequence |
-| `weighted_avg_proportion` | Weighted average proportion across replicates (Σ(proportion_i × total_reads_i) / Σ(total_reads_i)) |
-| `mean_proportion` | Simple mean of replicate proportions across replicates (unweighted) |
-| `replicate_summary` | Semicolon-separated read counts per replicate (human-readable summary) |
-| `proportion_summary` | Semicolon-separated proportions per replicate (human-readable summary) |
-| `not_replicated` | TRUE if the sequence fails the replication criteria (e.g., fewer than reads_replicates) |
-| `in_SB` | TRUE if the sequence is detected in any sampling blank (SB) |
-| `in_IB` | TRUE if the sequence is detected in any isolation blank (IB) |
-| `in_LB` | TRUE if the sequence is detected in any library blank (LB) |
-| `in_PB` | TRUE if the sequence is detected in any PCR blank (PB) |
-| `remove` | TRUE if flagged for removal (not_replicated OR in_LB OR in_PB OR in_IB OR in_SB) |
-| `obitag_bestid` | Best taxonomic match identity returned by obitag (0–1) |
-| `taxid` | NCBI taxonomy identifier for the assigned taxon |
-| `obitag_rank` | Taxonomic rank returned by obitag (e.g., species, genus, family) |
-| `taxon` | Taxonomic name assigned by obitag |
-
-**Processing info:** `results/{project}/tables/{project}-{db}-classification_info.txt`
-
-Contains statistics on filtering at each stage.
-
-**Error log:** `logs/{project}/{project}-{db}-classification_table.log`
-
-Contains error messages (if any).
+| File | Content |
+|------|---------|
+| `{project}-sample_summary.tsv` | one row per sample (isolation × library unit) × retained sequence, blanks included: sample fields, replicate statistics, blank flags, `remove_blank`, assignment of each database and the best one (`best_bestid`, `best_db`, `best_taxon`) |
+| `{project}-bio_sample_summary.tsv` | one row per sediment sample (`bio_sample`, all isolations and libraries pooled) × sequence: pooled replicate statistics, `n_units`, `units_removed_by_blank`, `removed_by`, assignments; input of `cluster_taxa.R` |
+| `{project}-sequences.tsv` | one row per sequence: reads in samples and blanks, observations, `pass_reads_across`, `pass_reads_replicates`, `pass_identity`, `retained`, assignment of each database |
+| `{project}-pcrs.tsv` | one row per PCR replicate: parsed name, raw reads, reads after each step and the share of raw reads removed by the technical filters (including OBITools), identity, blanks, and retained |
+| `{project}-samples.tsv` | one row per sample: reads, share retained, number of sequences, mean replication of the 10 most abundant sequences before (`avg_rep`) and after (`avg_filt_rep`) filtering, and their `overlap` |
+| `{project}-blank_report.tsv` | per blank and sequence: reads in the blank, samples flagged, samples where this blank was the only reason, reads removed |
+| `{project}-replicates.tsv.gz` | every observation (`pcr_id`, `sequence_id`, `reads`), unfiltered and including blanks, so filters can be re-applied without re-running the pipeline |
+| `{project}-filter_params.json` | parameters and counts of the run |
+| `{project}-process_motu_info.txt` | log with the counts at each step |
 
 ---
 
@@ -426,79 +390,33 @@ Contains error messages (if any).
 
 ### Overview
 
-The `cluster_taxa.R` script aggregates sequences by taxonomic assignment, applies identity and rank filters, and clusters by taxon at each sampling location.
+`cluster_taxa.R` makes one taxon table per database and sediment sample from `{project}-bio_sample_summary.tsv` (blank removal is already applied there).
 
 ### Processing Steps
 
-#### Step 1: Remove Flagged Sequences
-```r
-data %>% filter(remove == FALSE)
+1. Keep sequences whose assignment **in this database** has `bestid ≥ min_identity` (process_motu.R kept a sequence if any database reached it; here the database's own assignment must reach it).
+2. Keep assignments at family level or below: family, subfamily, tribe, subtribe, genus, subgenus, section, subsection, series, species group, species subgroup, species, subspecies, varietas, forma. `clade` and `no rank` cannot be placed without the lineage and are dropped; the number of rows per rank is written to the log.
+3. Merge the sequences of one taxon within each sediment sample. Replicate reads are added replicate by replicate, then `totread`, `totrep`, `proprep`, `avgpread`, `sdpread` and `weightrep` are recomputed.
+
+Example:
 ```
-Removes sequences flagged during MOTU processing.
-
-#### Step 2: Taxonomic Identity Filtering
-
-**Parameter** (from `config["parameters"]["tax_filters"]`):
-- **min_identity** `<FLOAT64>` (default: 1.0): Minimum taxonomic match identity to keep a sequence assignment (0-1 scale)
-```r
-data %>% filter(obitag_bestid >= min_identity)
+sample  sequence  replicate_reads
+S1      seq0042   50;0;40;0
+S1      seq0089   0;30;0;20
+-> Pinus  80;30;40;20   totrep = 4 (not 2)
 ```
 
-#### Step 3: Taxonomic Rank Filtering
-
-Keeps only ranks at or above family level:
-```r
-data %>% filter(obitag_rank %in% c("species", "subgenus", "section", 
-                                    "genus", "family", "subfamily", "tribe"))
-```
-
-Retained ranks are: species, subgenus, section, genus, subfamily, tribe, family.
-Everything higher than family-level is discarded.
-
-#### Step 4: Taxonomic Clustering
-
-Aggregates by unique taxon at each location:
-```r
-data %>%
-  group_by(core, depth, taxid, taxon, obitag_rank) %>%
-  summarise(total_reads = sum(total_reads))
-```
-
-Multiple sequences representing the same taxon (intraspecific variation) are clustered together. This provides  taxon-level abundance.
-
-**Important:** Clustering does not take taxonomy into consideration. So if you have sequences clustered on the genus level and the species within, you would have to add these togehter to get the total number of reads within this genus. In other words, the sum of reads assigned to higher taxonomic levels do not include reads assigned to lower taxonomic levels within.
-
-**Example:**
-```
-Before:
-core    depth   taxon            sequence  reads
-ZSG-3   025_D1  Picea abies      seq0042   145
-ZSG-3   025_D1  Picea abies      seq0089   89
-ZSG-3   025_D1  Picea abies      seq0156   52
-
-After:
-core    depth   taxon            total_reads
-ZSG-3   025_D1  Picea abies      286
-```
+Clustering does not use the taxonomy tree: reads assigned to a genus do not include the reads assigned to species within it.
 
 ### Output Files
 
 **Clustered table:** `results/{project}/tables/{project}-{db}-clustered_taxa_table.csv`
 
-**Columns:**
-- `core`, `depth`: Sample location
-- `taxid`: NCBI taxonomy ID
-- `taxon`: Taxonomic name
-- `obitag_rank`: Taxonomic rank
-- `total_reads`: Aggregated abundance across all sequences
+`bio_sample`, `lab_sample_ids`, `core`, `depth`, `n_units`, `units`, `taxid`, `taxon`, `obitag_rank`, `n_sequences`, `sequence_ids`, `max_bestid`, `replicates`, `replicate_reads`, `replicate_totals`, `totread`, `totrep`, `nrep`, `proprep`, `avgpread`, `sdpread`, `weightrep`, `removed_by`. Blanks are not in this table (see `sample_summary` and `blank_report`).
 
 **Processing info:** `results/{project}/tables/{project}-{db}-clustered_taxa_info.txt`
 
-Contains statistics on filtering and clustering.
-
 **Error log:** `logs/{project}/{project}-{db}-clustered_taxa_table.log`
-
-Contains error messages (if any).
 
 ---
 
@@ -514,21 +432,22 @@ Unique sequences with counts
     ↓ [obigrep: Count & length filtering]
 Filtered unique sequences
     ↓ [obiclean: Denoising & error removal]
-Clean unique sequences: ~3,000
-    ↓ [obitag: Taxonomic classification]
+Clean unique sequences
+    ↓ [obitag: Taxonomic classification, every database]
 Classified sequences
-    ↓ [process_motu.R: Replication + Blank filtering]
-├─ reads_within filter: Remove low-abundance within replicates
-├─ reads_replicates filter: Require minimum replication
-├─ reads_across filter: Require minimum total reads
-├─ Blank contamination filter: Remove if in LB/PB/IB/SB
-└─ Valid sequences
-    ↓ [cluster_taxa.R: Identity + Rank filtering]
-├─ min_identity filter: Remove low-confidence assignments (<97%)
-├─ Rank filter: Remove assignments above family level
-└─ Valid taxa
-    ↓ [Clustering by taxon]
-Final taxa-location combinations
+    ↓ [process_motu.R: once per project, MergeAndFilter design]
+├─ reads_within: counts < 3 in a replicate set to 0
+├─ reads_across: ≥ 10 reads per sequence over all sample replicates
+├─ reads_replicates: ≥ 3 sample replicates per sequence
+├─ min_identity: reached in at least one database
+├─ blanks: flag/remove per sample (LB, PB by library; IB by isolation; SB by core + Dn)
+├─ per-sample replicate statistics
+└─ pooling of isolations/libraries to bio_sample (core_depth)
+    ↓ [cluster_taxa.R: per database]
+├─ min_identity in this database
+├─ ranks at family level or below
+└─ sequences merged per taxon, replicate by replicate
+Final sample × taxon tables
 ```
 
 ---
@@ -563,8 +482,15 @@ results/
     │   ├── {project}-{db}.motu_table.csv
     │   └── {project}-{db}.classification_table.csv
     ├── tables/
-    │   ├── {project}-{db}-classification_table.csv
-    │   ├── {project}-{db}-classification_info.txt
+    │   ├── {project}-sample_summary.tsv
+    │   ├── {project}-bio_sample_summary.tsv
+    │   ├── {project}-sequences.tsv
+    │   ├── {project}-pcrs.tsv
+    │   ├── {project}-samples.tsv
+    │   ├── {project}-blank_report.tsv
+    │   ├── {project}-replicates.tsv.gz
+    │   ├── {project}-filter_params.json
+    │   ├── {project}-process_motu_info.txt
     │   ├── {project}-{db}-clustered_taxa_table.csv
     │   └── {project}-{db}-clustered_taxa_info.txt
     └── stats/
@@ -578,7 +504,7 @@ logs/
 └── {project}/
     ├── {library}.paired.log
     ├── {library}.demux_{length}bp.log
-    ├── {project}-{db}-classification_table.log
+    ├── {project}-process_motu.log
     └── {project}-{db}-clustered_taxa_table.log
 ```
 

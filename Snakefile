@@ -111,10 +111,18 @@ rule all:
                 project=project,
                 db=PROJECT_DBS[project])
          for project in PROJECTS],
-        # Final processed MOTU table - all projects, all databases
-        [expand("results/{project}/tables/{project}-{db}-classification_table.csv",
-                project=project,
-                db=PROJECT_DBS[project])
+        # Merged and filtered tables (MergeAndFilter design) - one set per project
+        [expand([
+                "results/{project}/tables/{project}-sample_summary.tsv",
+                "results/{project}/tables/{project}-bio_sample_summary.tsv",
+                "results/{project}/tables/{project}-sequences.tsv",
+                "results/{project}/tables/{project}-pcrs.tsv",
+                "results/{project}/tables/{project}-samples.tsv",
+                "results/{project}/tables/{project}-blank_report.tsv",
+                "results/{project}/tables/{project}-replicates.tsv.gz",
+                "results/{project}/tables/{project}-filter_params.json"
+            ],
+            project=project)
          for project in PROJECTS],
         # Final clustered taxa table - all projects, all databases
         [expand("results/{project}/tables/{project}-{db}-clustered_taxa_table.csv",
